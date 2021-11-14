@@ -1,0 +1,116 @@
+
+
+    typedef node union:
+        branch: struct:
+            left: @node
+            right: @node
+        leaf: any
+
+...compiles to:
+
+    enum node_tag {
+        NODE_TAG_BRANCH,
+        NODE_TAG_LEAF,
+    };
+
+    typedef struct node {
+        int tag; /* enum node_tag*/
+        union {
+            struct {
+                struct node *left;
+                struct node *right;
+            } branch;
+            struct any *any;
+        } u;
+    } node_t;
+
+...where:
+
+    enum type_tag {
+        TYPE_TAG_VOID,
+        TYPE_TAG_ANY,
+        TYPE_TAG_INT,
+        TYPE_TAG_SYM,
+        TYPE_TAG_BOOL,
+        TYPE_TAG_CHAR,
+        TYPE_TAG_ARRAY,
+        TYPE_TAG_STRUCT,
+        TYPE_TAG_UNION,
+    };
+
+    typedef struct type {
+        int
+            tag     : 4, /* type_tag */
+            inline  : 1, /* Used by TYPE_TAG_STRUCT, TYPE_TAG_UNION */
+            weakref : 1, /* Used by TYPE_TAG_STRUCT, TYPE_TAG_UNION */
+        ;
+        union {
+            struct type *subtype; /* Used by TYPE_TAG_ARRAY */
+
+            /* NOTE: the fields should be an expandable array, not just a classic C array... */
+            struct type_field *fields; /* Used by TYPE_TAG_STRUCT, TYPE_TAG_UNION */
+        } u;
+    }
+
+    typedef struct any {
+        struct type *type;
+        void *ptr;
+    } any_t;
+
+    /* NOTE: the "struct type *" in the above should be changed to struct
+    type_ref, and inline & weakref should be moved onto that -- see below. */
+
+The system should be self-describing:
+
+    typedef type union:
+        void: void
+        any: void
+        int: void
+        sym: void
+        bool: void
+        char: void
+        array: struct:
+            subtype: inline @type_ref
+        struct: struct:
+            fields: arrayof @type_field
+        union: struct:
+            fields: arrayof @type_field
+
+    typedef type_ref struct:
+        type: weakref @type
+
+        # Only used by TYPE_TAG_STRUCT, TYPE_TAG_UNION
+        inline: bool
+        weakref: bool
+
+    typedef field struct:
+        name: sym
+        type: inline @type_ref
+
+The syntax we use should be translatable into objects describable by the system.
+Something like this:
+
+    typedef node union:
+        int: int
+        sym: sym
+        char: char
+        str: arrayof char
+        array: arrayof @node
+
+It should be possible to compile types described by the system into C types.
+It should also be possible to construct runtime "dynamic versions" of these objects.
+
+    typedef union value {
+        void void_f;
+        any_t any_f;
+        int int_f; /* size_t?.. */
+        const char *sym_f; /* Backed by a stringstore */
+        bool bool_f; /* So, not a bitfield *for dynamic values*. Compiled can be different */
+        char char_f; /* Unsigned?.. */
+        arrayof_value_t array_f;
+        value_t *struct_f;
+        struct {
+            int tag;
+            union value *value;
+        } union_f;
+    } value_t;
