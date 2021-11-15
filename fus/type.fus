@@ -1,0 +1,25 @@
+
+typedef type union:
+    void: void
+    any: void
+    int: void
+    sym: void
+    bool: void
+    byte: void
+    array: struct:
+        subtype: inline @type_ref
+    struct: struct:
+        fields: arrayof @type_field
+    union: struct:
+        fields: arrayof @type_field
+
+typedef type_ref struct:
+    type: weakref @type
+
+    # Only used by TYPE_TAG_STRUCT, TYPE_TAG_UNION
+    inline: bool
+    weakref: bool
+
+typedef field struct:
+    name: sym
+    type: inline @type_ref

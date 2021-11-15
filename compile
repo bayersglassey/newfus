@@ -1,2 +1,9 @@
+set -euo pipefail
+
 mkdir -p bin
-gcc -o bin/main src/main.c
+
+gcc \
+    -Wall -Werror \
+    -Wno-unused-function \
+    -o bin/fusc \
+    src/main/fusc.c src/*.c

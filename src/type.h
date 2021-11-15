@@ -11,7 +11,6 @@ typedef struct type_ref type_ref_t;
 typedef struct type_field type_field_t;
 typedef struct type type_t;
 
-DECLARE_ARRAYOF(type_field)
 
 enum type_tag {
     TYPE_TAG_VOID,
@@ -19,7 +18,7 @@ enum type_tag {
     TYPE_TAG_INT,
     TYPE_TAG_SYM,
     TYPE_TAG_BOOL,
-    TYPE_TAG_CHAR,
+    TYPE_TAG_BYTE,
     TYPE_TAG_ARRAY,
     TYPE_TAG_STRUCT,
     TYPE_TAG_UNION,
@@ -44,10 +43,10 @@ struct type {
             type_ref_t subtype_ref;
         } array_f;
         struct {
-            arrayof_type_field_t fields;
+            ARRAYOF(type_field_t) fields;
         } struct_f;
         struct {
-            arrayof_type_field_t fields;
+            ARRAYOF(type_field_t) fields;
         } union_f;
     } u;
 };

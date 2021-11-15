@@ -12,9 +12,6 @@
 typedef union value value_t;
 
 
-DECLARE_PTRARRAYOF(value)
-
-
 union value {
     struct {
         type_t *type_f;
@@ -23,8 +20,8 @@ union value {
     int int_f; /* size_t?.. */
     const char *sym_f; /* Backed by a stringstore */
     bool bool_f; /* So, not a bitfield *for dynamic values*. Compiled can be different */
-    char char_f; /* Unsigned?.. or we don't care?.. */
-    ptrarrayof_value_t array_f;
+    char byte_f; /* Unsigned?.. or we don't care?.. */
+    ARRAYOF(value_t *) array_f;
     value_t *struct_f;
     struct {
         int tag;
