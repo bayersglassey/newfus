@@ -6,10 +6,17 @@
 
 #include "array.h"
 
+#define DECLARE_TYPE(TYPE) \
+typedef struct TYPE TYPE##_t; \
+void TYPE##_cleanup(TYPE##_t *it);
 
-typedef struct type_ref type_ref_t;
-typedef struct type_field type_field_t;
-typedef struct type type_t;
+
+DECLARE_TYPE(type)
+DECLARE_TYPE(type_ref)
+DECLARE_TYPE(type_field)
+DECLARE_TYPE(type_u_array)
+DECLARE_TYPE(type_u_struct)
+DECLARE_TYPE(type_u_union)
 
 
 enum type_tag {
@@ -39,13 +46,13 @@ struct type_field {
 struct type {
     int tag; /* enum type_tag */
     union {
-        struct {
+        struct type_u_array {
             type_ref_t subtype_ref;
         } array_f;
-        struct {
+        struct type_u_struct {
             ARRAYOF(type_field_t) fields;
         } struct_f;
-        struct {
+        struct type_u_union {
             ARRAYOF(type_field_t) fields;
         } union_f;
     } u;

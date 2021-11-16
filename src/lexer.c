@@ -28,35 +28,15 @@ void lexer_cleanup(lexer_t *lexer) {
     free(lexer->indents);
 }
 
-int lexer_init(lexer_t *lexer, const char *text,
-    const char *filename
-) {
-    int err;
-
-    int indents_size = INITIAL_INDENTS_SIZE;
-    int *indents = calloc(indents_size, sizeof(indents));
-    if (indents == NULL) return 1;
-
+void lexer_init(lexer_t *lexer) {
     memset(lexer, 0, sizeof(*lexer));
-
-    lexer->filename = filename;
-    lexer->text = text;
-    lexer->text_len = strlen(text);
     lexer->token_type = LEXER_TOKEN_DONE;
-    lexer->indents_size = indents_size;
-    lexer->indents = indents;
-
-    err = lexer_get_indent(lexer);
-    if (err) return err;
-    err = lexer_next(lexer);
-    if (err) return err;
-    return 0;
 }
 
 void lexer_dump(lexer_t *lexer, FILE *f) {
     fprintf(f, "lexer: %p\n", lexer);
     if (lexer == NULL) return;
-    fprintf(f, "  text = ...\n");
+    /* fprintf(f, "  text = ...\n"); */
     fprintf(f, "  pos = %i\n", lexer->pos);
     fprintf(f, "  row = %i\n", lexer->row);
     fprintf(f, "  col = %i\n", lexer->col);
@@ -80,6 +60,52 @@ void lexer_info(lexer_t *lexer, FILE *f) {
 void lexer_err_info(lexer_t *lexer) {
     fprintf(stderr, "Lexer error: ");
     lexer_info(lexer, stderr);
+}
+
+int lexer_load(lexer_t *lexer, const char *text,
+    const char *filename
+) {
+    int err;
+
+    if (lexer_loaded(lexer)) lexer_unload(lexer);
+
+    if (lexer->indents_size == 0) {
+        int indents_size = INITIAL_INDENTS_SIZE;
+        int *indents = calloc(indents_size, sizeof(*indents));
+        if (indents == NULL) return 1;
+
+        lexer->indents_size = indents_size;
+        lexer->indents = indents;
+    }
+
+    lexer->filename = filename;
+    lexer->text = text;
+    lexer->text_len = strlen(text);
+    lexer->token_type = LEXER_TOKEN_DONE;
+
+    err = lexer_get_indent(lexer);
+    if (err) return err;
+    err = lexer_next(lexer);
+    if (err) return err;
+    return 0;
+}
+
+void lexer_unload(lexer_t *lexer) {
+    lexer->filename = NULL;
+    lexer->text_len = 0;
+    lexer->text = NULL;
+    lexer->token_len = 0;
+    lexer->token = NULL;
+    lexer->pos = 0;
+    lexer->row = 0;
+    lexer->col = 0;
+    lexer->indent = 0;
+    lexer->n_indents = 0;
+    lexer->returning_indents = 0;
+}
+
+bool lexer_loaded(lexer_t *lexer) {
+    return lexer->text != NULL;
 }
 
 static void lexer_start_token(lexer_t *lexer) {
@@ -108,9 +134,11 @@ static int lexer_push_indent(
         int indents_size = lexer->indents_size;
         int new_indents_size = indents_size * 2;
         int *new_indents = realloc(lexer->indents,
-            new_indents_size * sizeof(new_indents));
+            new_indents_size * sizeof(*new_indents));
         if (new_indents == NULL) return 1;
-        memset(new_indents + indents_size, 0, indents_size);
+        memset(new_indents + indents_size, 0,
+            (new_indents_size - indents_size) * sizeof(*new_indents));
+
         lexer->indents = new_indents;
         lexer->indents_size = new_indents_size;
     }
@@ -403,6 +431,14 @@ bool lexer_got_int(lexer_t *lexer) {
     return lexer->token_type == LEXER_TOKEN_INT;
 }
 
+bool lexer_got_open(lexer_t *lexer) {
+    return lexer->token_type == LEXER_TOKEN_OPEN;
+}
+
+bool lexer_got_close(lexer_t *lexer) {
+    return lexer->token_type == LEXER_TOKEN_CLOSE;
+}
+
 void lexer_show(lexer_t *lexer, FILE *f) {
     if (lexer->token == NULL) {
         fprintf(f, "end of input");
@@ -435,6 +471,22 @@ int lexer_get_name(lexer_t *lexer, char **name) {
     *name = _strndup(lexer->token, lexer->token_len);
     if (*name == NULL) return 1;
     return lexer_next(lexer);
+}
+
+int lexer_get_const_name(lexer_t *lexer, stringstore_t *stringstore,
+    const char **name
+) {
+    int err;
+
+    char *_name;
+    err = lexer_get_name(lexer, &_name);
+    if (err) return err;
+
+    const char *const_name = stringstore_get_donate(stringstore, _name);
+    if (!const_name) return 1;
+
+    *name = const_name;
+    return 0;
 }
 
 int lexer_get_str(lexer_t *lexer, char **s) {
@@ -494,6 +546,30 @@ int lexer_get_int(lexer_t *lexer, int *i) {
         return 2;
     }
     *i = atoi(lexer->token);
+    return lexer_next(lexer);
+}
+
+int lexer_get_open(lexer_t *lexer) {
+    if (!lexer_got_open(lexer)) {
+        lexer_err_info(lexer);
+        fprintf(stderr,
+            "Expected '(', but got: ");
+        lexer_show(lexer, stderr);
+        fprintf(stderr, "\n");
+        return 2;
+    }
+    return lexer_next(lexer);
+}
+
+int lexer_get_close(lexer_t *lexer) {
+    if (!lexer_got_close(lexer)) {
+        lexer_err_info(lexer);
+        fprintf(stderr,
+            "Expected ')', but got: ");
+        lexer_show(lexer, stderr);
+        fprintf(stderr, "\n");
+        return 2;
+    }
     return lexer_next(lexer);
 }
 

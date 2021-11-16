@@ -1,8 +1,7 @@
 set -euo pipefail
 
-echo "Starting tests..." >&2
-
+echo "Compiling bin/fusc..." >&2
 ./compile
-bin/fusc fus/type.fus
+echo "Compiled OK!" >&2
 
-echo "OK!" >&2
+bin/fusc fus/type.fus
