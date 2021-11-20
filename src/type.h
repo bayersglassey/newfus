@@ -68,9 +68,12 @@ struct type {
     int tag; /* enum type_tag */
     union {
         struct type_array {
+            type_def_t *def;
             type_ref_t *subtype_ref;
         } array_f;
         struct type_struct {
+            /* NOTE: used for both structs and unions */
+
             type_def_t *def;
             arrayof_inplace_type_field_t fields;
         } struct_f;
@@ -80,13 +83,15 @@ struct type {
     } u;
 };
 
+const char *type_get_subtype_name(type_t *type);
+
 /* Represents a reference to a type, e.g. from a struct's field */
 struct type_ref {
     int
         /* NOTE: inplace and weakref only make sense for struct/union
-        references */
-        inplace  : 1,
-        weakref  : 1;
+        references; and they are mutually exclusive */
+        is_inplace  : 1,
+        is_weakref  : 1;
 
     type_t type;
 };
@@ -99,11 +104,20 @@ struct type_field {
 
 /* Represents a C typedef: a sort of top-level name where types can be
 stored
-Also used to represent struct/union tags (see type_{struct,union}_t's def
-field) */
+Also used to represent struct/union tags, see type_{array,struct,union}_t's
+"def" field */
 struct type_def {
     const char *name;
     type_t type;
+
+    /* Reference to a type defined elsewhere (so, TYPE_TAG_UNDEFINED
+    is okay).
+    I'm not sure how I feel about this... it seems specific to compiler,
+    so maybe type_def_t belongs in compiler.h not type.h?..
+    But then type_{array,struct,alias}_t should have const char *name
+    instead of type_def_t *def, right?
+    Hmmmmm. */
+    bool is_extern;
 };
 
 

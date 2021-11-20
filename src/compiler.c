@@ -26,6 +26,43 @@ static int compiler_parse_type_field(compiler_t *compiler,
 
 
 
+static const char *_build_array_type_name(stringstore_t *store,
+    type_ref_t *subtype_ref
+) {
+    const char *elem_type_name;
+    switch (subtype_ref->type.tag) {
+        case TYPE_TAG_ARRAY:
+            elem_type_name = subtype_ref->type.u.array_f.def->name;
+            break;
+        case TYPE_TAG_STRUCT: case TYPE_TAG_UNION:
+            elem_type_name = subtype_ref->type.u.struct_f.def->name;
+            break;
+        case TYPE_TAG_ALIAS:
+            elem_type_name = subtype_ref->type.u.alias_f.def->name;
+            break;
+        default:
+            elem_type_name = type_tag_string(subtype_ref->type.tag);
+            break;
+    }
+
+    const char *array_type_name = elem_type_name;
+
+    if (subtype_ref->is_inplace) {
+        array_type_name = _const_strjoin2(store, "inplace_", array_type_name);
+        if (!array_type_name) return NULL;
+    } else if (subtype_ref->is_weakref) {
+        array_type_name = _const_strjoin2(store, "weakref_", array_type_name);
+        if (!array_type_name) return NULL;
+    }
+
+    array_type_name = _const_strjoin2(store, "arrayof_", array_type_name);
+    if (!array_type_name) return NULL;
+
+    return array_type_name;
+}
+
+
+
 void compiler_init(compiler_t *compiler, lexer_t *lexer,
     stringstore_t *store
 ) {
@@ -52,26 +89,38 @@ void compiler_dump(compiler_t *compiler, FILE *file) {
     fprintf(file, "Defs:\n");
     for (int i = 0; i < compiler->defs.len; i++) {
         type_def_t *def = compiler->defs.elems[i];
-        fprintf(file, "  %i/%zu: %s (%s)\n", i, compiler->defs.len,
-            def->name, type_tag_string(def->type.tag));
+        fprintf(file, "  %i/%zu: %s (%s)", i, compiler->defs.len, def->name,
+            type_tag_string(def->type.tag));
         switch (def->type.tag) {
             case TYPE_TAG_ARRAY: {
+                type_t *subtype = &def->type.u.array_f.subtype_ref->type;
+                fprintf(stderr, " -> (%s)", type_tag_string(subtype->tag));
+                const char *subtype_name = type_get_subtype_name(subtype);
+                if (subtype_name) fprintf(stderr, " -> %s", subtype_name);
+                fputc('\n', stderr);
                 break;
             }
             case TYPE_TAG_STRUCT: case TYPE_TAG_UNION: {
+                fputc('\n', stderr);
                 arrayof_inplace_type_field_t *fields = &def->type.u.struct_f.fields;
                 for (int i = 0; i < fields->len; i++) {
                     type_field_t *field = &fields->elems[i];
-                    fprintf(stderr, "    %s: %s\n", field->name,
+                    fprintf(stderr, "    %s (%s)", field->name,
                         type_tag_string(field->ref.type.tag));
+                    const char *subtype_name = type_get_subtype_name(&field->ref.type);
+                    if (subtype_name) fprintf(stderr, " -> %s", subtype_name);
+                    fputc('\n', stderr);
                 }
                 break;
             }
             case TYPE_TAG_ALIAS: {
-                fprintf(stderr, "    -> %s\n", def->type.u.alias_f.def->name);
+                fprintf(stderr, " -> %s\n", def->type.u.alias_f.def->name);
                 break;
             }
-            default: break;
+            default: {
+                fputc('\n', stderr);
+                break;
+            }
         }
     }
 }
@@ -160,6 +209,57 @@ static int compiler_redef_or_add_def(compiler_t *compiler,
     return 0;
 }
 
+static int compiler_get_or_add_array_def(compiler_t *compiler,
+    type_ref_t *subtype_ref, type_def_t **def_ptr
+) {
+    int err;
+
+    /* NOTE: caller is giving us ownership of subtype_ref.
+    We may even free it! So caller should not refer to it anymore.
+    Instead, caller may refer to (*def_ptr)->type.u.array_f.subtype_ref
+    (which is either the passed subtype_ref, or an equivalent one). */
+
+    const char *array_type_name = _build_array_type_name(compiler->store,
+        subtype_ref);
+    if (!array_type_name) return 1;
+
+    /* Get or create def */
+    type_def_t *def = compiler_get_def(compiler, array_type_name);
+    if (def) {
+        if (def->type.tag != TYPE_TAG_ARRAY) {
+            fprintf(stderr,
+                "Def already exists, and is not an array: %s (%s)",
+                    array_type_name, type_tag_string(def->type.tag));
+            const char *subtype_name = type_get_subtype_name(&def->type);
+            if (subtype_name) fprintf(stderr, " -> %s", subtype_name);
+            fputc('\n', stderr);
+            return 2;
+        }
+
+        /* TODO: stronger check that def is for the correct array type.
+        E.g. by adding a function for comparing references?..
+        And then checking e.g that
+        subtype_ref_eq(subtype_ref, def->u.array_f.subtype_ref) */
+
+        /* Free subtype_ref; we don't need it, because it's equivalent to
+        def->u.array_f.subtype_ref */
+        type_ref_cleanup(subtype_ref);
+        free(subtype_ref);
+    } else {
+        err = compiler_add_def(compiler, array_type_name, &def);
+        if (err) return err;
+
+        def->type.tag = TYPE_TAG_ARRAY;
+        def->type.u.array_f.def = def;
+        def->type.u.array_f.subtype_ref = subtype_ref;
+    }
+
+    *def_ptr = def;
+    return 0;
+}
+
+
+
 static int compiler_parse_type_ref(compiler_t *compiler,
     compiler_frame_t *frame, type_ref_t *ref
 ) {
@@ -169,16 +269,12 @@ static int compiler_parse_type_ref(compiler_t *compiler,
     memset(ref, 0, sizeof(*ref));
     ref->type.tag = TYPE_TAG_UNDEFINED;
 
-    for (;;) {
-        if (GOT("inplace")) {
-            NEXT
-            ref->inplace = true;
-        } else if (GOT("weakref")) {
-            NEXT
-            ref->weakref = true;
-        } else {
-            break;
-        }
+    if (GOT("inplace")) {
+        NEXT
+        ref->is_inplace = true;
+    } else if (GOT("weakref")) {
+        NEXT
+        ref->is_weakref = true;
     }
 
     err = compiler_parse_type(compiler, frame, &ref->type);
@@ -196,14 +292,12 @@ static int compiler_parse_type_field(compiler_t *compiler,
     const char *field_name;
     GET_CONST_NAME(field_name, compiler->store)
 
-    ARRAY_PUSH(type_field_t, *fields, field)
-    field->name = field_name;
-    memset(&field->ref, 0, sizeof(type_ref_t));
-    field->ref.type.tag = TYPE_TAG_UNDEFINED;
-
     const char *field_type_name = _const_strjoin3(compiler->store, frame->type_name,
         "_", field_name);
     if (!field_type_name) return 1;
+
+    ARRAY_PUSH(type_field_t, *fields, field)
+    field->name = field_name;
 
     GET_OPEN
     compiler_frame_t subframe = *frame;
@@ -223,21 +317,6 @@ static int compiler_parse_type(compiler_t *compiler,
 ) {
     int err;
     lexer_t *lexer = compiler->lexer;
-
-    /* TODO: Is this where we look for "inplace" and "weakref"?
-    Hmmm... does it make sense to have an array of inplace things? Yes.
-    Array of weakrefs? Yes.
-    Typedef defining a weakref to some other type? Not really.
-    -> Being a weakref is not something which translates into C.
-        That's why type_ref_t exists: it tells you how the host type
-        (struct/union/array) is going to use the subtype.
-    Typedef defining an inplace version of some other type? NO.
-    -> Because defining a struct is, in C, already defining its "inplace"
-        version.
-        So what are we trying to achieve here?..
-        I think basically, we want to hide the details of pointers away.
-        So again, that's why we distinguish type_ref_t from type_t.
-    */
 
     if (GOT("@")) {
         NEXT
@@ -277,6 +356,8 @@ static int compiler_parse_type(compiler_t *compiler,
         err = compiler_get_or_add_def(compiler, packaged_name, &def);
         if (err) return err;
 
+        def->is_extern = true;
+
         /* Type is an alias to def */
         type->tag = TYPE_TAG_ALIAS;
         type->u.alias_f.def = def;
@@ -301,13 +382,6 @@ static int compiler_parse_type(compiler_t *compiler,
     } else if (GOT("array")) {
         NEXT
 
-        type_ref_t *ref = calloc(1, sizeof(*ref));
-        if (!ref) return 1;
-        ref->type.tag = TYPE_TAG_UNDEFINED;
-
-        type->tag = TYPE_TAG_ARRAY;
-        type->u.array_f.subtype_ref = ref;
-
         const char *elem_type_name = frame->type_name;
         if (!frame->array_depth) {
             const char *_elem_type_name = _const_strjoin2(compiler->store,
@@ -317,36 +391,36 @@ static int compiler_parse_type(compiler_t *compiler,
             elem_type_name = _elem_type_name;
         }
 
+        type_ref_t *subtype_ref = calloc(1, sizeof(*subtype_ref));
+        if (!subtype_ref) return 1;
+
         GET_OPEN
         compiler_frame_t subframe = *frame;
         subframe.array_depth++;
         subframe.type_name = elem_type_name;
-        err = compiler_parse_type_ref(compiler, &subframe, ref);
+        err = compiler_parse_type_ref(compiler, &subframe, subtype_ref);
         if (err) return err;
         GET_CLOSE
 
         /* !!! TODO !!!
-        This is not sufficient. We need to look at whether our subtype ref is
-        inline/weakref, and add prefixes for those accordingly. */
-        const char *array_type_name = _const_strjoin2(compiler->store,
-            "arrayof_", elem_type_name);
-        if (!array_type_name) return 1;
-
+        Factor this stuff out into compiler_get_or_add_array, which checks
+        whether a def with name array_type_name already exists, and if so
+        maybe also checks that its ref is "equal" to our subtype_ref?..
+        (Is type and ref equality well-defined?.. can we add methods for that
+        to type.[ch]?..)
+        Maybe it's sufficient to check that def exists with given name and
+        that its tag is TYPE_TAG_ARRAY.
+        We do *NOT* expect tag to be TYPE_TAG_UNDEFINED, right?..
+        That is, array types are always created immediately, they don't
+        need to sit around in undefined state for a while first.
+        (I think TYPE_TAG_ALIAS is the only type for which that can occur?) */
         type_def_t *def;
-        err = compiler_get_or_add_def(compiler, array_type_name, &def);
+        err = compiler_get_or_add_array_def(compiler, subtype_ref, &def);
         if (err) return err;
-        /* TODO: get or create the array type for our subtype.
-        E.g. "arrayof_int", "arrayof_thing",
-        "arrayof_inplace_thing_field_elem"...
-        How is this even possible?
-        What do we do when e.g. subtype is undefined?
-        When compilation is finished, no types should be left undefined.
-        But until then... we won't be able to e.g. reliably check whether subtype
-        is a struct/union and get its name.
 
-        ...also, I think (like for "struct" and "union", see below) that the
-        array type should live on its def, and the type we return to caller
-        here should just be an alias to it. */
+        /* Caller gets an *alias* to our array type */
+        type->tag = TYPE_TAG_ALIAS;
+        type->u.alias_f.def = def;
     } else if (GOT("struct") || GOT("union")) {
         bool is_union = lexer->token[0] == 'u';
         NEXT
@@ -373,9 +447,13 @@ static int compiler_parse_type(compiler_t *compiler,
         }
         GET_CLOSE
 
-        /* Caller gets an *alias* to our struct/union type */
-        type->tag = TYPE_TAG_ALIAS;
-        type->u.alias_f.def = def;
+        /* If the type to be returned to caller is different than the type living
+        on the def for this struct/union... */
+        if (type != &def->type) {
+            /* Caller gets an *alias* to our struct/union type */
+            type->tag = TYPE_TAG_ALIAS;
+            type->u.alias_f.def = def;
+        }
     } else {
         return UNEXPECTED(
             "one of: void any int sym bool byte array struct union");
@@ -437,6 +515,8 @@ static int _compiler_compile(compiler_t *compiler) {
                 type_def_t *def;
                 err = compiler_get_or_add_def(compiler, packaged_name, &def);
                 if (err) return err;
+
+                def->is_extern = true;
 
                 compiler_binding_t *binding = compiler_get_binding(compiler,
                     name);

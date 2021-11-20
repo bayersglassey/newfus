@@ -2,33 +2,35 @@
 package: test
 
 from util_math:
-    # The name "complex" is now bound to util_math_complex_t
+    # The name "complex" is now bound to util_math_complex
     complex
 
 
-# test_int_t
+# test_int
 typedef int: int
 
-# test_integer_t
+# test_integer
 typedef integer: @int
 
-# test_intarray_t
+# test_intarray
 # arrayof_int
-# test_intarray_elem ???
-# arrayof_test_intarray_elem ???
 typedef intarray: array: int
 
+# test_intarray2
+# arrayof_int
+typedef intarray2: array: int
 
-# test_grid_t
+
+# test_grid
 typedef grid: struct:
     w: int
     h: int
 
-    # test_grid_cells_elem_t
-    # arrayof_inplace_test_grid_cells_elem_t
-    # arrayof_arrayof_inplace_test_grid_cells_elem_t
+    # test_grid_cells_elem
+    # arrayof_inplace_test_grid_cells_elem
+    # arrayof_arrayof_inplace_test_grid_cells_elem
     cells: array: array: inplace struct:
-        # any_t
+        # any
         data: any
 
 
@@ -45,36 +47,36 @@ typedef empty_union: union:
     # Is a C enum created?
 
 
-# test_country_t
+# test_country
 typedef country: struct:
     name: sym
 
-    # test_grid_t
+    # test_grid
     grid: inplace @grid
 
-    # util_math_complex_t
+    # util_math_complex
     coord: @complex
 
     # no type!.. in fact, no field is created!..
     unused: void
 
-    # test_country_areas_elem_t
-    # arrayof_test_country_areas_elem_t
+    # test_country_areas_elem
+    # arrayof_test_country_areas_elem
     areas: array: struct:
         name: sym
 
-        # struct test_country_areas_elem_details_t
+        # struct test_country_areas_elem_details
         details: union:
-            # struct test_country_areas_elem_details_territory_t
+            # struct test_country_areas_elem_details_territory
             territory: struct:
-                # arrayof_int_t
+                # arrayof_int
                 years: array: int
 
-                # math_real_t
+                # math_real
                 amount: @@util_math_real
 
-            # struct test_country_areas_elem_details_province_t
+            # struct test_country_areas_elem_details_province
             province: struct:
-                # arrayof_sym_t
+                # arrayof_sym
                 # (So, is sym_t typedef'd as "const char *"?..)
                 names: array: sym

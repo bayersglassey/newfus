@@ -5,6 +5,18 @@
 
 #include "type.h"
 
+const char *type_get_subtype_name(type_t *type) {
+    switch (type->tag) {
+        case TYPE_TAG_ARRAY:
+            return type->u.array_f.def->name;
+        case TYPE_TAG_STRUCT: case TYPE_TAG_UNION:
+            return type->u.struct_f.def->name;
+        case TYPE_TAG_ALIAS:
+            return type->u.alias_f.def->name;
+        default: return NULL;
+    }
+}
+
 void type_ref_cleanup(type_ref_t *ref) {
     type_cleanup(&ref->type);
 }
