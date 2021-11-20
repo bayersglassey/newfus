@@ -1,0 +1,80 @@
+
+package: test
+
+from util_math:
+    # The name "complex" is now bound to util_math_complex_t
+    complex
+
+
+# test_int_t
+typedef int: int
+
+# test_integer_t
+typedef integer: @int
+
+# test_intarray_t
+# arrayof_int
+# test_intarray_elem ???
+# arrayof_test_intarray_elem ???
+typedef intarray: array: int
+
+
+# test_grid_t
+typedef grid: struct:
+    w: int
+    h: int
+
+    # test_grid_cells_elem_t
+    # arrayof_inplace_test_grid_cells_elem_t
+    # arrayof_arrayof_inplace_test_grid_cells_elem_t
+    cells: array: array: inplace struct:
+        # any_t
+        data: any
+
+
+typedef empty_struct: struct:
+    # No fields...
+    # Resulting C struct has an "int dummy" field?..
+    # Or no C struct is even generated?..
+    # (I think the former is the case. Maybe "int _"?..)
+
+typedef empty_union: union:
+    # No fields...
+    # A C struct is created, with a tag field.
+    # Does the struct have a union?.. with a dummy field?..
+    # Is a C enum created?
+
+
+# test_country_t
+typedef country: struct:
+    name: sym
+
+    # test_grid_t
+    grid: inplace @grid
+
+    # util_math_complex_t
+    coord: @complex
+
+    # no type!.. in fact, no field is created!..
+    unused: void
+
+    # test_country_areas_elem_t
+    # arrayof_test_country_areas_elem_t
+    areas: array: struct:
+        name: sym
+
+        # struct test_country_areas_elem_details_t
+        details: union:
+            # struct test_country_areas_elem_details_territory_t
+            territory: struct:
+                # arrayof_int_t
+                years: array: int
+
+                # math_real_t
+                amount: @@util_math_real
+
+            # struct test_country_areas_elem_details_province_t
+            province: struct:
+                # arrayof_sym_t
+                # (So, is sym_t typedef'd as "const char *"?..)
+                names: array: sym

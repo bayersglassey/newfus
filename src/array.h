@@ -7,6 +7,12 @@
     TYPE *elems; \
 }
 
+#define ARRAY_ZERO(A1) { \
+    (A1).size = 0; \
+    (A1).len = 0; \
+    (A1).elems = NULL; \
+}
+
 #define ARRAY_CLONE(TYPE, A1, A2) \
 { \
     size_t len = (A2).len; \
@@ -58,13 +64,15 @@ Multiplies its size by 2 (or starts it at 8 if size was 0). */
     (A1).size = new_size; \
 }
 
-#define ARRAY_PUSH_UNINITIALIZED(TYPE, A1) \
+#define ARRAY_PUSH(TYPE, A1, ELEM_VAR) \
+TYPE *ELEM_VAR; \
 { \
     if ((A1).len >= (A1).size) ARRAY_GROW(TYPE, A1) \
     (A1).len++; \
+    ELEM_VAR = &(A1).elems[(A1).len - 1]; \
 }
 
-#define ARRAY_PUSH(TYPE, A1, ELEM) \
+#define ARRAY_PUSH_ELEM(TYPE, A1, ELEM) \
 { \
     ARRAY_PUSH_UNINITIALIZED(TYPE, A1) \
     (A1).elems[(A1).len - 1] = (ELEM); \

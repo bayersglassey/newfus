@@ -3,6 +3,7 @@ set -euo pipefail
 mkdir -p bin
 
 gcc \
+    -g -O0 \
     -Wall -Werror \
     -Wno-unused-function \
     -o bin/fusc \

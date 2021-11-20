@@ -4,4 +4,5 @@ echo "Compiling bin/fusc..." >&2
 ./compile
 echo "Compiled OK!" >&2
 
+bin/fusc fus/test.fus
 bin/fusc fus/type.fus

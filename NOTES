@@ -41,7 +41,7 @@
     typedef struct type {
         int
             tag     : 4, /* type_tag */
-            inline  : 1, /* Used by TYPE_TAG_STRUCT, TYPE_TAG_UNION */
+            inplace : 1, /* Used by TYPE_TAG_STRUCT, TYPE_TAG_UNION */
             weakref : 1, /* Used by TYPE_TAG_STRUCT, TYPE_TAG_UNION */
         ;
         union {
@@ -58,7 +58,7 @@
     } any_t;
 
     /* NOTE: the "struct type *" in the above should be changed to struct
-    type_ref, and inline & weakref should be moved onto that -- see below. */
+    type_ref, and inplace & weakref should be moved onto that -- see below. */
 
 The system should be self-describing:
 
@@ -70,7 +70,7 @@ The system should be self-describing:
         bool: void
         char: void
         array: struct:
-            subtype: inline @type_ref
+            subtype: inplace @type_ref
         struct: struct:
             fields: arrayof @type_field
         union: struct:
@@ -80,12 +80,12 @@ The system should be self-describing:
         type: weakref @type
 
         # Only used by TYPE_TAG_STRUCT, TYPE_TAG_UNION
-        inline: bool
+        inplace: bool
         weakref: bool
 
     typedef field struct:
         name: sym
-        type: inline @type_ref
+        type: inplace @type_ref
 
 The syntax we use should be translatable into objects describable by the system.
 Something like this:

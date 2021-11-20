@@ -64,6 +64,7 @@ int main(int n_args, char **args) {
 
         if (debug) {
             stringstore_dump(&stringstore, stderr);
+            compiler_dump(&compiler, stderr);
         }
 
         compiler_cleanup(&compiler);
