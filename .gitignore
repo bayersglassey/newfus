@@ -1,2 +1,5 @@
 *.o
 /bin/
+
+/_test_src
+/_test

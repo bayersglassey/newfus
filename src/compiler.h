@@ -45,5 +45,13 @@ void compiler_init(compiler_t *compiler, lexer_t *lexer,
 void compiler_dump(compiler_t *compiler, FILE *file);
 int compiler_compile(compiler_t *compiler, const char *buffer,
     const char *filename);
+bool compiler_validate(compiler_t *compiler);
+void compiler_write_hfile(compiler_t *compiler, FILE *file);
+void compiler_write_cfile(compiler_t *compiler, FILE *file);
+void compiler_write_typedefs(compiler_t *compiler, FILE *file);
+void compiler_write_enums(compiler_t *compiler, FILE *file);
+void compiler_write_structs(compiler_t *compiler, FILE *file);
+void compiler_write_prototypes(compiler_t *compiler, FILE *file);
+void compiler_write_functions(compiler_t *compiler, FILE *file);
 
 #endif

@@ -13,6 +13,18 @@
     (A1).elems = NULL; \
 }
 
+#define ARRAY_FOR(TYPE, A1, ELEM_VAR, BLOCK) \
+for (int _array_i = 0; _array_i < (A1).len; _array_i++) { \
+    TYPE ELEM_VAR = (A1).elems[_array_i]; \
+    BLOCK \
+}
+
+#define ARRAY_FOR_REF(TYPE, A1, ELEM_VAR, BLOCK) \
+for (int _array_i = 0; _array_i < (A1).len; _array_i++) { \
+    TYPE ELEM_VAR = &(A1).elems[_array_i]; \
+    BLOCK \
+}
+
 #define ARRAY_CLONE(TYPE, A1, A2) \
 { \
     size_t len = (A2).len; \

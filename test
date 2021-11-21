@@ -4,5 +4,23 @@ echo "Compiling bin/fusc..." >&2
 ./compile
 echo "Compiled OK!" >&2
 
-bin/fusc fus/test.fus
-bin/fusc fus/type.fus
+if test "$#" -eq 0
+then
+    # Default: names of all .fus files in fus/
+    set -- test type
+fi
+
+for name in "$@"
+do
+    echo "========= TESTING: $name ==========" >&2
+    rm -rf _test_src
+    mkdir _test_src
+
+    echo "#include <stdbool.h>" >>_test_src/t.c
+    echo "#include <stdlib.h>" >>_test_src/t.c
+    echo "#include <string.h>" >>_test_src/t.c
+    echo "#include \"../src/test/helpers.h\"" >>_test_src/t.c
+    bin/fusc --hfile --cfile fus/"$name".fus >>_test_src/t.c
+
+    gcc -o _test _test_src/*.c src/test/*.c
+done

@@ -22,7 +22,8 @@ static int compiler_parse_type(compiler_t *compiler,
 static int compiler_parse_type_ref(compiler_t *compiler,
     compiler_frame_t *frame, type_ref_t *ref);
 static int compiler_parse_type_field(compiler_t *compiler,
-    compiler_frame_t *frame, arrayof_inplace_type_field_t *fields);
+    compiler_frame_t *frame, arrayof_inplace_type_field_t *fields,
+    bool is_union);
 
 
 
@@ -61,6 +62,28 @@ static const char *_build_array_type_name(stringstore_t *store,
     return array_type_name;
 }
 
+static const char *_build_union_tags_name(stringstore_t *store,
+    const char *struct_name
+) {
+    char *tags_name = _strjoin2(struct_name, "_tags");
+    if (!tags_name) return NULL;
+
+    _strtoupper(tags_name);
+
+    return stringstore_get_donate(store, tags_name);
+}
+
+static const char *_build_field_tag_name(stringstore_t *store,
+    const char *union_name, const char *field_name
+) {
+    char *tag_name = _strjoin3(union_name, "_tag_", field_name);
+    if (!tag_name) return NULL;
+
+    _strtoupper(tag_name);
+
+    return stringstore_get_donate(store, tag_name);
+}
+
 
 
 void compiler_init(compiler_t *compiler, lexer_t *lexer,
@@ -95,8 +118,8 @@ void compiler_dump(compiler_t *compiler, FILE *file) {
             case TYPE_TAG_ARRAY: {
                 type_t *subtype = &def->type.u.array_f.subtype_ref->type;
                 fprintf(stderr, " -> (%s)", type_tag_string(subtype->tag));
-                const char *subtype_name = type_get_subtype_name(subtype);
-                if (subtype_name) fprintf(stderr, " -> %s", subtype_name);
+                type_def_t *def = type_get_def(subtype);
+                if (def) fprintf(stderr, " -> %s", def->name);
                 fputc('\n', stderr);
                 break;
             }
@@ -107,8 +130,8 @@ void compiler_dump(compiler_t *compiler, FILE *file) {
                     type_field_t *field = &fields->elems[i];
                     fprintf(stderr, "    %s (%s)", field->name,
                         type_tag_string(field->ref.type.tag));
-                    const char *subtype_name = type_get_subtype_name(&field->ref.type);
-                    if (subtype_name) fprintf(stderr, " -> %s", subtype_name);
+                    type_def_t *def = type_get_def(&field->ref.type);
+                    if (def) fprintf(stderr, " -> %s", def->name);
                     fputc('\n', stderr);
                 }
                 break;
@@ -230,8 +253,8 @@ static int compiler_get_or_add_array_def(compiler_t *compiler,
             fprintf(stderr,
                 "Def already exists, and is not an array: %s (%s)",
                     array_type_name, type_tag_string(def->type.tag));
-            const char *subtype_name = type_get_subtype_name(&def->type);
-            if (subtype_name) fprintf(stderr, " -> %s", subtype_name);
+            type_def_t *subdef = type_get_def(&def->type);
+            if (subdef) fprintf(stderr, " -> %s", subdef->name);
             fputc('\n', stderr);
             return 2;
         }
@@ -284,7 +307,8 @@ static int compiler_parse_type_ref(compiler_t *compiler,
 }
 
 static int compiler_parse_type_field(compiler_t *compiler,
-    compiler_frame_t *frame, arrayof_inplace_type_field_t *fields
+    compiler_frame_t *frame, arrayof_inplace_type_field_t *fields,
+    bool is_union
 ) {
     int err;
     lexer_t *lexer = compiler->lexer;
@@ -298,6 +322,13 @@ static int compiler_parse_type_field(compiler_t *compiler,
 
     ARRAY_PUSH(type_field_t, *fields, field)
     field->name = field_name;
+
+    if (is_union) {
+        const char *tag_name = _build_field_tag_name(compiler->store,
+            frame->type_name, field_name);
+        if (!tag_name) return 1;
+        field->tag_name = tag_name;
+    }
 
     GET_OPEN
     compiler_frame_t subframe = *frame;
@@ -435,14 +466,20 @@ static int compiler_parse_type(compiler_t *compiler,
         err = compiler_redef_or_add_def(compiler, frame->type_name, &def);
         if (err) return err;
 
+        memset(&def->type, 0, sizeof(def->type));
         def->type.tag = is_union? TYPE_TAG_UNION: TYPE_TAG_STRUCT;
         def->type.u.struct_f.def = def;
-        ARRAY_ZERO(def->type.u.struct_f.fields)
+        if (is_union) {
+            const char *tags_name = _build_union_tags_name(compiler->store,
+                frame->type_name);
+            if (!tags_name) return 1;
+            def->type.u.struct_f.tags_name = tags_name;
+        }
 
         GET_OPEN
         while (!DONE && !GOT_CLOSE) {
             err = compiler_parse_type_field(compiler, frame,
-                &def->type.u.struct_f.fields);
+                &def->type.u.struct_f.fields, is_union);
             if (err) return err;
         }
         GET_CLOSE
@@ -561,6 +598,9 @@ int compiler_compile(compiler_t *compiler, const char *buffer,
         compiler_dump(compiler, stderr);
         return err;
     }
+
+    /* TODO: solve the partial order of defs (so C can compile inplace things
+    without complaining about "incomplete type") */
 
     if (!lexer_done(lexer)) {
         return lexer_unexpected(lexer, "end of file");

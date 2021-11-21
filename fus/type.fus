@@ -4,21 +4,21 @@ package: fus
 
 # fus_type_t
 typedef type: union:
-    void: void
-    any: void
-    int: void
-    sym: void
-    bool: void
-    byte: void
+    void_f: void
+    any_f: void
+    int_f: void
+    sym_f: void
+    bool_f: void
+    byte_f: void
     # fus_type_array_t
-    array: struct:
+    array_f: struct:
         subtype: inplace @type_ref
     # fus_type_struct_t
-    struct: struct:
+    struct_f: struct:
         # arrayof_fus_type_field_t
         fields: array: @type_field
     # fus_type_union_t
-    union: struct:
+    union_f: struct:
         # arrayof_fus_type_field_t
         fields: array: @type_field
 
