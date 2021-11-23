@@ -13,17 +13,17 @@
     (A1).elems = NULL; \
 }
 
-#define ARRAY_FOR(TYPE, A1, ELEM_VAR, BLOCK) \
-for (int _array_i = 0; _array_i < (A1).len; _array_i++) { \
-    TYPE ELEM_VAR = (A1).elems[_array_i]; \
-    BLOCK \
-}
+#define ARRAY_FOR(TYPE, A1, ELEM_VAR) if ((A1).len) for ( \
+    TYPE *ELEM_VAR, *_iter = &(A1).elems[0], *_end = _iter + (A1).len; \
+    _iter != _end? (ELEM_VAR = _iter, true): false; \
+    _iter++ \
+)
 
-#define ARRAY_FOR_REF(TYPE, A1, ELEM_VAR, BLOCK) \
-for (int _array_i = 0; _array_i < (A1).len; _array_i++) { \
-    TYPE ELEM_VAR = &(A1).elems[_array_i]; \
-    BLOCK \
-}
+#define ARRAY_FOR_PTR(TYPE, A1, ELEM_VAR) if ((A1).len) for ( \
+    TYPE *ELEM_VAR, **_iter = &(A1).elems[0], **_end = _iter + (A1).len; \
+    _iter != _end? (ELEM_VAR = *_iter, true): false; \
+    _iter++ \
+)
 
 #define ARRAY_CLONE(TYPE, A1, A2) \
 { \

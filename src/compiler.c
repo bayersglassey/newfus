@@ -684,13 +684,13 @@ static int compiler_sort_defs(compiler_t *compiler) {
                 break;
             }
             case TYPE_TAG_STRUCT: case TYPE_TAG_UNION: {
-                ARRAY_FOR_REF(type_field_t*, type->u.struct_f.fields, field, {
+                ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                     type_ref_t *ref = &field->ref;
                     type_def_t *subdef = type_get_def(&ref->type);
                     if (subdef && subdef != def) {
                         has_refs[_get_def_i(compiler, subdef)] = true;
                     }
-                })
+                }
                 break;
             }
             case TYPE_TAG_ALIAS: {

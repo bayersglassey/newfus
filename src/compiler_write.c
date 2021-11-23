@@ -71,7 +71,7 @@ static bool _validate_ref(type_ref_t *ref) {
 
 bool compiler_validate(compiler_t *compiler) {
     bool ok = true;
-    ARRAY_FOR(type_def_t*, compiler->defs, def, {
+    ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
         type_t *type = &def->type;
 
         switch (type->tag) {
@@ -90,13 +90,13 @@ bool compiler_validate(compiler_t *compiler) {
                 break;
             }
             case TYPE_TAG_STRUCT: case TYPE_TAG_UNION: {
-                ARRAY_FOR_REF(type_field_t*, type->u.struct_f.fields, field, {
+                ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                     if (!_validate_ref(&field->ref)) {
                         fprintf(stderr, "...while validating field %s of: %s\n",
                             field->name, def->name);
                         ok = false;
                     }
-                })
+                }
                 break;
             }
             case TYPE_TAG_ALIAS: {
@@ -115,7 +115,7 @@ bool compiler_validate(compiler_t *compiler) {
             default: break;
         }
 
-    })
+    }
     return ok;
 }
 
@@ -146,7 +146,7 @@ void compiler_write_cfile(compiler_t *compiler, FILE *file) {
 }
 
 void compiler_write_typedefs(compiler_t *compiler, FILE *file) {
-    ARRAY_FOR(type_def_t*, compiler->defs, def, {
+    ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
         type_t *type = &def->type;
 
         /* Undefined defs are expected to be defined "elsewhere", i.e. in C */
@@ -165,22 +165,22 @@ void compiler_write_typedefs(compiler_t *compiler, FILE *file) {
                 break;
         }
         fprintf(file, " %s_t;\n", def->name);
-    })
+    }
 }
 
 void compiler_write_enums(compiler_t *compiler, FILE *file) {
-    ARRAY_FOR(type_def_t*, compiler->defs, def, {
+    ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
         type_t *type = &def->type;
 
         if (type->tag == TYPE_TAG_UNION) {
             fprintf(file, "enum %s_tag {\n", def->name);
-            ARRAY_FOR_REF(type_field_t*, type->u.struct_f.fields, field, {
+            ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                 fprintf(file, "    %s,\n", field->tag_name);
-            })
+            }
             fprintf(file, "    %s\n", type->u.struct_f.tags_name);
             fprintf(file, "};\n");
         }
-    })
+    }
 }
 
 void _write_type_ref(type_ref_t *ref, FILE *file) {
@@ -193,7 +193,7 @@ void _write_type_ref(type_ref_t *ref, FILE *file) {
 void compiler_write_structs(compiler_t *compiler, FILE *file) {
     /* NOTE: writes C structs for fus structs, unions, and arrays. */
 
-    ARRAY_FOR(type_def_t*, compiler->defs, def, {
+    ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
         type_t *type = &def->type;
 
         switch (type->tag) {
@@ -211,11 +211,11 @@ void compiler_write_structs(compiler_t *compiler, FILE *file) {
             }
             case TYPE_TAG_STRUCT: {
                 fprintf(file, "struct %s {\n", def->name);
-                ARRAY_FOR_REF(type_field_t*, type->u.struct_f.fields, field, {
+                ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                     fprintf(file, "    ");
                     _write_type_ref(&field->ref, file);
                     fprintf(file, " %s;\n", field->name);
-                })
+                }
                 fprintf(file, "};\n");
                 break;
             }
@@ -223,22 +223,22 @@ void compiler_write_structs(compiler_t *compiler, FILE *file) {
                 fprintf(file, "struct %s {\n", def->name);
                 fprintf(file, "    int tag; /* enum %s_tag */\n", def->name);
                 fprintf(file, "    union {\n");
-                ARRAY_FOR_REF(type_field_t*, type->u.struct_f.fields, field, {
+                ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                     fprintf(file, "        ");
                     _write_type_ref(&field->ref, file);
                     fprintf(file, " %s;\n", field->name);
-                })
+                }
                 fprintf(file, "    } u;\n");
                 fprintf(file, "};\n");
                 break;
             }
             default: break;
         }
-    })
+    }
 }
 
 void compiler_write_prototypes(compiler_t *compiler, FILE *file) {
-    ARRAY_FOR(type_def_t*, compiler->defs, def, {
+    ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
         type_t *type = &def->type;
 
         /* Undefined defs are expected to be defined "elsewhere", i.e. in
@@ -259,7 +259,7 @@ void compiler_write_prototypes(compiler_t *compiler, FILE *file) {
         } else {
             fprintf(file, "#define %s_cleanup (void)\n", def->name);
         }
-    })
+    }
 }
 
 static void _write_cleanup(type_def_t *def, FILE *file) {
@@ -295,7 +295,7 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
             break;
         }
         case TYPE_TAG_STRUCT: {
-            ARRAY_FOR_REF(type_field_t*, type->u.struct_f.fields, field, {
+            ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                 type_ref_t *ref = &field->ref;
                 type_def_t *subdef = type_get_def(&ref->type);
                 if (subdef && !ref->is_weakref) {
@@ -304,12 +304,12 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
                         type_ref_is_inplace(ref)? "&": "",
                         field->name);
                 }
-            })
+            }
             break;
         }
         case TYPE_TAG_UNION: {
             fprintf(file, "    switch (it->tag) {\n");
-            ARRAY_FOR_REF(type_field_t*, type->u.struct_f.fields, field, {
+            ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                 type_ref_t *ref = &field->ref;
                 type_def_t *subdef = type_get_def(&ref->type);
                 if (subdef && !ref->is_weakref) {
@@ -319,7 +319,7 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
                         type_ref_is_inplace(ref)? "&": "",
                         field->name);
                 }
-            })
+            }
             fprintf(file, "        default: break;\n");
             fprintf(file, "    }\n");
             break;
@@ -334,7 +334,7 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
 }
 
 void compiler_write_functions(compiler_t *compiler, FILE *file) {
-    ARRAY_FOR(type_def_t*, compiler->defs, def, {
+    ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
         _write_cleanup(def, file);
-    })
+    }
 }
