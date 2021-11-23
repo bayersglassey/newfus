@@ -262,7 +262,7 @@ static int compiler_get_or_add_array_def(compiler_t *compiler,
         /* TODO: stronger check that def is for the correct array type.
         E.g. by adding a function for comparing references?..
         And then checking e.g that
-        subtype_ref_eq(subtype_ref, def->u.array_f.subtype_ref) */
+        type_ref_eq(subtype_ref, def->u.array_f.subtype_ref) */
 
         /* Free subtype_ref; we don't need it, because it's equivalent to
         def->u.array_f.subtype_ref */
@@ -433,18 +433,6 @@ static int compiler_parse_type(compiler_t *compiler,
         if (err) return err;
         GET_CLOSE
 
-        /* !!! TODO !!!
-        Factor this stuff out into compiler_get_or_add_array, which checks
-        whether a def with name array_type_name already exists, and if so
-        maybe also checks that its ref is "equal" to our subtype_ref?..
-        (Is type and ref equality well-defined?.. can we add methods for that
-        to type.[ch]?..)
-        Maybe it's sufficient to check that def exists with given name and
-        that its tag is TYPE_TAG_ARRAY.
-        We do *NOT* expect tag to be TYPE_TAG_UNDEFINED, right?..
-        That is, array types are always created immediately, they don't
-        need to sit around in undefined state for a while first.
-        (I think TYPE_TAG_ALIAS is the only type for which that can occur?) */
         type_def_t *def;
         err = compiler_get_or_add_array_def(compiler, subtype_ref, &def);
         if (err) return err;
@@ -456,12 +444,6 @@ static int compiler_parse_type(compiler_t *compiler,
         bool is_union = lexer->token[0] == 'u';
         NEXT
 
-        /* !!! TODO !!!
-        The following will explode if we are doing e.g. "typedef lala: struct: ..."
-        because both the "typedef" and the "struct" will be trying to define a type
-        named "lala".
-        So do we perhaps want to add a separate array of structs to the compiler,
-        alongside the array of defs?.. */
         type_def_t *def;
         err = compiler_redef_or_add_def(compiler, frame->type_name, &def);
         if (err) return err;
@@ -582,6 +564,167 @@ static int _compiler_compile(compiler_t *compiler) {
     return 0;
 }
 
+
+static int _get_def_i(compiler_t *compiler, type_def_t *def) {
+    for (int i = 0; i < compiler->defs.len; i++) {
+        if (def == compiler->defs.elems[i]) return i;
+    }
+    fprintf(stderr, "Couldn't find def: %s\n", def->name);
+    exit(1);
+}
+
+static int compiler_sort_defs(compiler_t *compiler) {
+
+    /* !!! TODO !!!
+    This should be run *after* compiler_verify.
+    So, compiler_verify should *not* be in compiler_write.c, it should be in
+    here, and should be run at the end of compiler_compile. */
+
+    /* !!! TODO !!!
+    What is this function trying to achieve?..
+    It's trying to reorder the defs for *AT LEAST TWO PURPOSES*:
+
+        1) C "inplace" structs (referring def is TYPE_TAG_{STRUCT,UNION})
+        2) C typedefs (rferring def is TYPE_TAG_ALIAS)
+
+    ...right? And those occur IN DIFFERENT PORTIONS OF THE OUTPUT, that is:
+
+        1) bin/fusc --structs
+        2) bin/fusc --typedefs
+
+    Now, we're currently hoping to find "root" defs.
+    Do those really exist?
+    What is a "non-root" def?
+
+    No wait, most important question maybe is:
+
+        IS IT POSSIBLE TO HAVE DEFS WHOSE STRUCTS MUST BE IN ONE ORDER,
+        BUT WHOSE TYPEDEFS MUST BE IN ANOTHER ORDER?
+
+        ...I don't think so.
+        Each def "is" either a struct or an alias (or something else).
+        If we always put aliases *last* I think we're okay.
+
+        Mmmmmmm okay but what about:
+
+        FUS:
+
+            typedef A: struct:
+                b: inplace B
+
+            typedef B: @C
+
+            typedef C: struct:
+                # whatever
+
+        C:
+
+            // How did we know C must come before A?..
+            typedef struct C C;
+            typedef struct A A;
+            typedef C B;
+
+            struct C {
+                // whatever
+            };
+
+            struct A {
+                B b;
+            };
+
+    ...actually, maybe it's better to just treat these things differently.
+    That is, sort aliases separately from structs.
+    */
+
+
+    /************** ALLOCATE & INITIALIZE *************/
+
+    /* has_refs: quick lookup for whether the def with given index
+    (within compiler->defs.elems) has any references to it from other
+    defs. */
+    bool *has_refs = calloc(compiler->defs.len, sizeof(*has_refs));
+    if (!has_refs) return 1;
+
+    /* def_visited: quick lookup for whether the def with given index
+    (within compiler->defs.elems) was visited by our breadth-first
+    traversal yet. */
+    bool *def_visited = calloc(compiler->defs.len, sizeof(*def_visited));
+    if (!def_visited) {
+        free(has_refs);
+        return 1;
+    }
+
+    /* new_defs: array which will replace compiler->defs.elems.
+    Does double duty as the queue for our breadth-first traversal. */
+    type_def_t **new_defs = calloc(compiler->defs.len, sizeof(*new_defs));
+    if (!new_defs) {
+        free(has_refs);
+        free(def_visited);
+        return 1;
+    }
+
+    /* Length of new_defs, in the sense of number of elements populated
+    so far (when >= compiler->defs.len, we are done our breadth-first
+    traversal). */
+    size_t new_defs_len = 0;
+
+
+    /************** THE ALGORITHM *************/
+
+    /* Figure out which defs have references to them */
+    for (int i = 0; i < compiler->defs.len; i++) {
+        type_def_t *def = compiler->defs.elems[i];
+        type_t *type = &def->type;
+        switch (type->tag) {
+            case TYPE_TAG_ARRAY: {
+                type_def_t *subdef = type_get_def(type);
+                if (subdef && subdef != def) {
+                    has_refs[_get_def_i(compiler, subdef)] = true;
+                }
+                break;
+            }
+            case TYPE_TAG_STRUCT: case TYPE_TAG_UNION: {
+                ARRAY_FOR_REF(type_field_t*, type->u.struct_f.fields, field, {
+                    type_ref_t *ref = &field->ref;
+                    type_def_t *subdef = type_get_def(&ref->type);
+                    if (subdef && subdef != def) {
+                        has_refs[_get_def_i(compiler, subdef)] = true;
+                    }
+                })
+                break;
+            }
+            case TYPE_TAG_ALIAS: {
+                break;
+            }
+            default: break;
+        }
+    }
+
+    /* Push "root" defs (ones with no references to them) onto the new_defs
+    queue */
+    for (int i = 0; i < compiler->defs.len; i++) {
+        if (!has_refs[i]) continue;
+        new_defs[new_defs_len++] = compiler->defs.elems[i];
+    }
+
+    for (int i = 0; i < compiler->defs.len; i++) {
+        type_def_t *def = compiler->defs.elems[i];
+        (void) def;
+    }
+
+
+    /************** CLEANUP & RETURN *************/
+
+    /* Replace compiler->defs.elems with new_defs */
+    free(compiler->defs.elems);
+    compiler->defs.elems = new_defs;
+
+    /* Hooray let's all go home now */
+    free(has_refs);
+    free(def_visited);
+    return 0;
+}
+
 int compiler_compile(compiler_t *compiler, const char *buffer,
     const char *filename
 ) {
@@ -599,8 +742,13 @@ int compiler_compile(compiler_t *compiler, const char *buffer,
         return err;
     }
 
-    /* TODO: solve the partial order of defs (so C can compile inplace things
-    without complaining about "incomplete type") */
+    /* Sort compiler->defs such that each def comes *after* any defs it
+    depends on (i.e. refers to, e.g. an array's subtype or a struct
+    field's type).
+    This is so that C can compile inplace structs without running into
+    "field has incomplete type" issues. */
+    //err = compiler_sort_defs(compiler);
+    //if (err) return err;
 
     if (!lexer_done(lexer)) {
         return lexer_unexpected(lexer, "end of file");

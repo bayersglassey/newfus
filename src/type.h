@@ -50,9 +50,6 @@ enum type_tag {
 
 
 /* Whether references to this kind of type are pointers by default */
-/* TODO: in compiler_write.c, we tend to check whether type_get_def is
-non-NULL instead of using this function.
-Is one of these approaches more correct?.. */
 static bool type_tag_is_pointer(int tag) {
     return
         tag == TYPE_TAG_STRUCT ||
@@ -164,7 +161,11 @@ struct type_def {
 };
 
 struct any {
-    /* TODO: can any's ref be inplace? No. Can it be a weakref? Yes. */
+    /* TODO: can any's ref be inplace? No. Can it be a weakref? Yes.
+    How about a ref to an array? It's inplace by default. Can it be made
+    non-inplace? Certainly not UNLESS it can be made weakref.
+    So okay, both any and array share this property that it makes sense
+    to allow them to be weakref, but otherwise they are always inplace. */
     type_ref_t type_ref;
     void *value;
 };

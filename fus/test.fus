@@ -1,4 +1,49 @@
 
+##################################################################
+package: cycle1
+
+# NOTE: no def reordering required (because no refs are inplace)
+
+# cycle1_A
+typedef A: struct:
+    b: @B
+
+# cycle1_B
+typedef B: struct:
+    a: @A
+
+
+##################################################################
+package: cycle2
+
+# NOTE: cycle2_A should be reordered to come after cycle2_B
+
+# cycle2_A
+typedef A: @B
+
+# cycle2_B
+typedef B: struct:
+    a: @A
+
+
+##################################################################
+package: cycle3
+
+# NOTE: cycle3_C should be reordered to come before cycle3_A
+
+# cycle3_A
+typedef A: struct:
+    b: inplace @B
+
+# cycle3_B
+typedef B: @C
+
+# cycle3_C
+typedef C: struct:
+    whatever: int
+
+
+##################################################################
 package: test
 
 from util_math:
