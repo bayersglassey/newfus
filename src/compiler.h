@@ -45,6 +45,7 @@ void compiler_init(compiler_t *compiler, lexer_t *lexer,
 void compiler_dump(compiler_t *compiler, FILE *file);
 int compiler_compile(compiler_t *compiler, const char *buffer,
     const char *filename);
+int compiler_parse_defs(compiler_t *compiler);
 bool compiler_validate(compiler_t *compiler);
 void compiler_write_hfile(compiler_t *compiler, FILE *file);
 void compiler_write_cfile(compiler_t *compiler, FILE *file);
