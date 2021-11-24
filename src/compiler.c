@@ -573,12 +573,7 @@ static int _get_def_i(compiler_t *compiler, type_def_t *def) {
     exit(1);
 }
 
-static int compiler_sort_defs(compiler_t *compiler) {
-
-    /* !!! TODO !!!
-    This should be run *after* compiler_verify.
-    So, compiler_verify should *not* be in compiler_write.c, it should be in
-    here, and should be run at the end of compiler_compile. */
+static int compiler_sort_inplace_refs(compiler_t *compiler) {
 
     /* !!! TODO !!!
     What is this function trying to achieve?..
@@ -725,6 +720,67 @@ static int compiler_sort_defs(compiler_t *compiler) {
     return 0;
 }
 
+static int _compare_aliases(const void *ptr1, const void *ptr2) {
+    /* For use with qsort.
+    Returns -1 if def1 should come before def2, that is, if def2 is an alias
+    to def1.
+    Returns 1 if the reverse is true.
+    Otherwise, returns 0.
+
+    NOTE: Caller guarantees that def1 and def2 are aliases (TYPE_TAG_ALIAS).
+    */
+    type_def_t *def1 = * (type_def_t **) ptr1;
+    type_def_t *def2 = * (type_def_t **) ptr2;
+
+    /* Check whether def1 is an alias to def2 */
+    for (const type_def_t *def = def1;;) {
+        def = def->type.u.alias_f.def;
+        if (def == def2) return 1;
+        if (def->type.tag != TYPE_TAG_ALIAS) break;
+    }
+
+    /* Check whether def2 is an alias to def1 */
+    for (const type_def_t *def = def2;;) {
+        def = def->type.u.alias_f.def;
+        if (def == def1) return -1;
+        if (def->type.tag != TYPE_TAG_ALIAS) break;
+    }
+
+    return 0;
+}
+
+static int compiler_sort_aliases(compiler_t *compiler) {
+
+    /* new_defs: will replace compiler->defs.elems, once we sort them in it */
+    type_def_t **new_defs = malloc(compiler->defs.len * sizeof(*new_defs));
+    if (!new_defs) return 1;
+
+    /* Copy all non-alias defs into new_defs */
+    size_t new_defs_len = 0;
+    ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
+        if (def->type.tag == TYPE_TAG_ALIAS) continue;
+        new_defs[new_defs_len++] = def;
+    }
+
+    size_t n_aliases = compiler->defs.len - new_defs_len;
+
+    /* Copy all alias defs into new_defs (after all the non-alias defs) */
+    ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
+        if (def->type.tag != TYPE_TAG_ALIAS) continue;
+        new_defs[new_defs_len++] = def;
+    }
+
+    /* Sort the aliases so that they come after their dependencies */
+    qsort(
+        new_defs + new_defs_len - n_aliases, n_aliases,
+        sizeof(*compiler->defs.elems), &_compare_aliases);
+
+    /* Replace compiler's defs with the new, sorted ones */
+    free(compiler->defs.elems);
+    compiler->defs.elems = new_defs;
+    return 0;
+}
+
 int compiler_compile(compiler_t *compiler, const char *buffer,
     const char *filename
 ) {
@@ -742,12 +798,15 @@ int compiler_compile(compiler_t *compiler, const char *buffer,
         return err;
     }
 
-    /* Sort compiler->defs such that each def comes *after* any defs it
-    depends on (i.e. refers to, e.g. an array's subtype or a struct
-    field's type).
-    This is so that C can compile inplace structs without running into
-    "field has incomplete type" issues. */
-    //err = compiler_sort_defs(compiler);
+    if (!compiler_validate(compiler)) return 2;
+
+    /* Sort compiler->defs such that aliases come after their subdefs */
+    err = compiler_sort_aliases(compiler);
+    if (err) return err;
+
+    /* Sort compiler->defs such that arrays/structs/unions come after any
+    defs they have an inplace reference to. */
+    //err = compiler_sort_inplace_refs(compiler);
     //if (err) return err;
 
     if (!lexer_done(lexer)) {
@@ -756,4 +815,82 @@ int compiler_compile(compiler_t *compiler, const char *buffer,
 
     lexer_unload(lexer);
     return 0;
+}
+
+
+static bool _validate_ref(type_ref_t *ref) {
+    bool ok = true;
+
+    type_t *real_type = type_unalias(&ref->type);
+    bool is_pointer = type_tag_is_pointer(real_type->tag);
+
+    if (ref->is_inplace && real_type->tag == TYPE_TAG_UNDEFINED) {
+        fprintf(stderr,
+            "\"inplace\" reference not allowed for undefined type\n");
+        ok = false;
+    }
+
+    if (ref->is_inplace && !is_pointer) {
+        fprintf(stderr, "\"inplace\" reference not allowed to: %s\n",
+            type_tag_string(real_type->tag));
+        ok = false;
+    }
+
+    if (ref->is_weakref && !is_pointer) {
+        fprintf(stderr, "\"weakref\" reference not allowed to: %s\n",
+            type_tag_string(real_type->tag));
+        ok = false;
+    }
+
+    return ok;
+}
+
+bool compiler_validate(compiler_t *compiler) {
+    bool ok = true;
+    ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
+        type_t *type = &def->type;
+
+        switch (type->tag) {
+            case TYPE_TAG_UNDEFINED: {
+                if (!def->is_extern) {
+                    fprintf(stderr, "Def is undefined: %s\n", def->name);
+                    ok = false;
+                }
+                break;
+            }
+            case TYPE_TAG_ARRAY: {
+                if (!_validate_ref(type->u.array_f.subtype_ref)) {
+                    fprintf(stderr, "...while validating: %s\n", def->name);
+                    ok = false;
+                }
+                break;
+            }
+            case TYPE_TAG_STRUCT: case TYPE_TAG_UNION: {
+                ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
+                    if (!_validate_ref(&field->ref)) {
+                        fprintf(stderr, "...while validating field %s of: %s\n",
+                            field->name, def->name);
+                        ok = false;
+                    }
+                }
+                break;
+            }
+            case TYPE_TAG_ALIAS: {
+                type_def_t *subdef = type->u.alias_f.def;
+                while (subdef->type.tag == TYPE_TAG_ALIAS) {
+                    if (subdef == def) {
+                        fprintf(stderr, "Circular definition: %s\n",
+                            def->name);
+                        ok = false;
+                        break;
+                    }
+                    subdef = subdef->type.u.alias_f.def;
+                }
+                break;
+            }
+            default: break;
+        }
+
+    }
+    return ok;
 }

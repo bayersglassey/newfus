@@ -16,31 +16,30 @@ typedef B: struct:
 ##################################################################
 package: cycle2
 
-# NOTE: cycle2_A should be reordered to come after cycle2_B
+# NOTE: cycle2_C should be reordered to come before cycle2_A
 
 # cycle2_A
-typedef A: @B
+typedef A: struct:
+    b: inplace @B
 
 # cycle2_B
-typedef B: struct:
-    a: @A
+typedef B: @C
+
+# cycle2_C
+typedef C: struct:
+    whatever: int
 
 
 ##################################################################
 package: cycle3
 
-# NOTE: cycle3_C should be reordered to come before cycle3_A
+# NOTE: cycle3_B should be reordered to come before cycle3_A
 
 # cycle3_A
-typedef A: struct:
-    b: inplace @B
+typedef A: @B
 
 # cycle3_B
-typedef B: @C
-
-# cycle3_C
-typedef C: struct:
-    whatever: int
+typedef B: int
 
 
 ##################################################################

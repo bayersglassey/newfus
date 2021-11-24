@@ -9,7 +9,6 @@
 
 
 bool debug = false;
-bool novalidate = false;
 bool write_typedefs = false;
 bool write_enums = false;
 bool write_structs = false;
@@ -24,7 +23,6 @@ static void print_usage(FILE *file) {
         "Options: [OPTION ...] [--] [FILE ...]\n"
         "  -h  --help        Print this message & exit\n"
         "  -D  --debug       Dump debug information to stderr\n"
-        "      --novalidate  Don't validate compiled types/functions\n"
         "      --hfile       Write compiled .h file to stdout\n"
         "      --cfile       Write compiled .c file to stdout\n"
         "      --typedefs    Write compiled typedefs to stdout\n"
@@ -58,21 +56,13 @@ int _compile(compiler_t *compiler, int n_filenames, char **filenames) {
         compiler_dump(compiler, stderr);
     }
 
-    bool ok = true;
-    if (!novalidate) {
-        ok = compiler_validate(compiler);
-        if (!ok) fprintf(stderr, "Verification failed!\n");
-    }
-
-    if (ok) {
-        if (write_typedefs) compiler_write_typedefs(compiler, stdout);
-        if (write_enums) compiler_write_enums(compiler, stdout);
-        if (write_structs) compiler_write_structs(compiler, stdout);
-        if (write_protos) compiler_write_prototypes(compiler, stdout);
-        if (write_functions) compiler_write_functions(compiler, stdout);
-        if (write_hfile) compiler_write_hfile(compiler, stdout);
-        if (write_cfile) compiler_write_cfile(compiler, stdout);
-    }
+    if (write_typedefs) compiler_write_typedefs(compiler, stdout);
+    if (write_enums) compiler_write_enums(compiler, stdout);
+    if (write_structs) compiler_write_structs(compiler, stdout);
+    if (write_protos) compiler_write_prototypes(compiler, stdout);
+    if (write_functions) compiler_write_functions(compiler, stdout);
+    if (write_hfile) compiler_write_hfile(compiler, stdout);
+    if (write_cfile) compiler_write_cfile(compiler, stdout);
 
     return 0;
 }
@@ -89,8 +79,6 @@ int main(int n_args, char **args) {
             return 0;
         } else if (!strcmp(arg, "-D") || !strcmp(arg, "--debug")) {
             debug = true;
-        } else if (!strcmp(arg, "--novalidate")) {
-            novalidate = true;
         } else if (!strcmp(arg, "--typedefs")) {
             write_typedefs = true;
         } else if (!strcmp(arg, "--enums")) {
