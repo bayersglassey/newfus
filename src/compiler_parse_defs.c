@@ -343,6 +343,58 @@ static int compiler_parse_type_field(compiler_t *compiler,
     return 0;
 }
 
+static int compiler_parse_struct_or_union_def(compiler_t *compiler,
+    compiler_frame_t *frame, type_def_t **def_ptr
+) {
+    int err;
+    lexer_t *lexer = compiler->lexer;
+
+    bool is_union = lexer->token[0] == 'u';
+    NEXT
+
+    /* NOTE: we may be called in one of two ways... either as a top-level
+    "statement" defining a struct, in which case frame == NULL and we require
+    that a type_name be syntactically provided (e.g. "struct NAME: ...");
+    or as a non-top-level "expression" defining a struct, in which case
+    frame != NULL and type_name defaults to frame->type_name. */
+    const char *type_name = frame? frame->type_name: NULL;
+    if (!frame || GOT_NAME) {
+        const char *_type_name;
+        GET_CONST_NAME(_type_name, compiler->store)
+
+        type_name = compiler_get_packaged_name(compiler, _type_name);
+        if (!type_name) return 1;
+    }
+
+    type_def_t *def;
+    err = compiler_redef_or_add_def(compiler, type_name, &def);
+    if (err) return err;
+
+    memset(&def->type, 0, sizeof(def->type));
+    def->type.tag = is_union? TYPE_TAG_UNION: TYPE_TAG_STRUCT;
+    def->type.u.struct_f.def = def;
+    if (is_union) {
+        const char *tags_name = _build_union_tags_name(compiler->store,
+            type_name);
+        if (!tags_name) return 1;
+        def->type.u.struct_f.tags_name = tags_name;
+    }
+
+    compiler_frame_t subframe = {0};
+    if (frame) subframe = *frame;
+    subframe.type_name = type_name;
+    GET_OPEN
+    while (!DONE && !GOT_CLOSE) {
+        err = compiler_parse_type_field(compiler, &subframe,
+            &def->type.u.struct_f.fields, is_union);
+        if (err) return err;
+    }
+    GET_CLOSE
+
+    *def_ptr = def;
+    return 0;
+}
+
 static int compiler_parse_type(compiler_t *compiler,
     compiler_frame_t *frame, type_t *type
 ) {
@@ -441,30 +493,9 @@ static int compiler_parse_type(compiler_t *compiler,
         type->tag = TYPE_TAG_ALIAS;
         type->u.alias_f.def = def;
     } else if (GOT("struct") || GOT("union")) {
-        bool is_union = lexer->token[0] == 'u';
-        NEXT
-
         type_def_t *def;
-        err = compiler_redef_or_add_def(compiler, frame->type_name, &def);
+        err = compiler_parse_struct_or_union_def(compiler, frame, &def);
         if (err) return err;
-
-        memset(&def->type, 0, sizeof(def->type));
-        def->type.tag = is_union? TYPE_TAG_UNION: TYPE_TAG_STRUCT;
-        def->type.u.struct_f.def = def;
-        if (is_union) {
-            const char *tags_name = _build_union_tags_name(compiler->store,
-                frame->type_name);
-            if (!tags_name) return 1;
-            def->type.u.struct_f.tags_name = tags_name;
-        }
-
-        GET_OPEN
-        while (!DONE && !GOT_CLOSE) {
-            err = compiler_parse_type_field(compiler, frame,
-                &def->type.u.struct_f.fields, is_union);
-            if (err) return err;
-        }
-        GET_CLOSE
 
         /* If the type to be returned to caller is different than the type living
         on the def for this struct/union... */
@@ -507,6 +538,10 @@ int compiler_parse_defs(compiler_t *compiler) {
             err = compiler_parse_type(compiler, &frame, &def->type);
             if (err) return err;
             GET_CLOSE
+        } else if (GOT("struct") || GOT("union")) {
+            type_def_t *def;
+            err = compiler_parse_struct_or_union_def(compiler, NULL, &def);
+            if (err) return err;
         } else if (GOT("package")) {
             NEXT
 
