@@ -176,6 +176,20 @@ void compiler_write_prototypes(compiler_t *compiler, FILE *file) {
         might be a macro. */
         if (type->tag == TYPE_TAG_UNDEFINED) continue;
 
+        if (type->tag == TYPE_TAG_UNION) {
+            fprintf(file, "const char *%s_tag_sym(int tag /* enum %s_tag */) {\n",
+                def->name, def->name);
+            fprintf(file, "    switch (tag) {\n");
+            ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
+                fprintf(file, "        case %s: return \"%s\";\n",
+                    field->tag_name, field->tag_name);
+            }
+            fprintf(file, "        default: return \"__unknown__\";\n");
+            fprintf(file, "    }\n");
+            fprintf(file, "}\n");
+        }
+
+
         type_def_t *subdef = type_get_def(type);
         if (subdef) {
             if (type->tag == TYPE_TAG_ALIAS) {
