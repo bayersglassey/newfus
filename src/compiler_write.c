@@ -45,6 +45,11 @@ void _write_type_name(type_t *type, FILE *file) {
 void compiler_write_hfile(compiler_t *compiler, FILE *file) {
     fputc('\n', file);
 
+    fprintf(file, "#include <stdio.h>\n");
+    fprintf(file, "#include <stdlib.h>\n");
+    fprintf(file, "#include <string.h>\n");
+    fputc('\n', file);
+
     fprintf(file, "/* FUS typedefs */\n");
     compiler_write_typedefs(compiler, file);
     fputc('\n', file);

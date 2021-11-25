@@ -77,7 +77,7 @@ bool lexer_loaded(lexer_t *lexer);
 int lexer_next(lexer_t *lexer);
 bool lexer_done(lexer_t *lexer);
 bool lexer_got(lexer_t *lexer, const char *text);
-bool lexer_got_sym(lexer_t *lexer);
+bool lexer_got_name(lexer_t *lexer);
 bool lexer_got_str(lexer_t *lexer);
 bool lexer_got_int(lexer_t *lexer);
 bool lexer_got_open(lexer_t *lexer);

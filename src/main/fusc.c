@@ -16,6 +16,7 @@ bool write_protos = false;
 bool write_functions = false;
 bool write_hfile = false;
 bool write_cfile = false;
+bool write_main = false;
 
 
 static void print_usage(FILE *file) {
@@ -25,6 +26,7 @@ static void print_usage(FILE *file) {
         "  -D  --debug       Dump debug information to stderr\n"
         "      --hfile       Write compiled .h file to stdout\n"
         "      --cfile       Write compiled .c file to stdout\n"
+        "      --main        Write a dummy main function to stdout\n"
         "      --typedefs    Write compiled typedefs to stdout\n"
         "      --enums       Write compiled enums to stdout\n"
         "      --structs     Write compiled C structs (of fus arrays/structs/unions) to stdout\n"
@@ -45,7 +47,12 @@ int _compile(compiler_t *compiler, int n_filenames, char **filenames) {
         if (!buffer) return 1;
 
         err = compiler_compile(compiler, buffer, filename);
-        if (err) return err;
+        if (err) {
+            fprintf(stderr, "Compilation failed!\n");
+            stringstore_dump(compiler->store, stderr);
+            compiler_dump(compiler, stderr);
+            return err;
+        }
 
         free(buffer);
         fprintf(stderr, "...done compiling: %s\n", filename);
@@ -63,6 +70,9 @@ int _compile(compiler_t *compiler, int n_filenames, char **filenames) {
     if (write_functions) compiler_write_functions(compiler, stdout);
     if (write_hfile) compiler_write_hfile(compiler, stdout);
     if (write_cfile) compiler_write_cfile(compiler, stdout);
+    if (write_main) {
+        fprintf(stdout, "int main(int n_args, char **args) { return 0; }\n");
+    }
 
     return 0;
 }
@@ -93,6 +103,8 @@ int main(int n_args, char **args) {
             write_hfile = true;
         } else if (!strcmp(arg, "--cfile")) {
             write_cfile = true;
+        } else if (!strcmp(arg, "--main")) {
+            write_main = true;
         } else if (!strcmp(arg, "--")) {
             arg_i++;
             break;
