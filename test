@@ -8,7 +8,7 @@ echo "Compiled OK!" >&2
 if test "$#" -eq 0
 then
     # Default: names of all .fus files in fus/
-    set -- test type
+    set -- empty min test type
 fi
 
 for name in "$@"

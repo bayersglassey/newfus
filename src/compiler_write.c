@@ -236,11 +236,12 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
                 type_ref_t *ref = &field->ref;
                 type_def_t *subdef = type_get_def(&ref->type);
                 if (subdef && !ref->is_weakref) {
-                    fprintf(file, "        case %s: %s_cleanup(%sit->u.%s);\n",
-                        field->tag_name,
+                    fprintf(file, "        case %s:\n", field->tag_name);
+                    fprintf(file, "            %s_cleanup(%sit->u.%s);\n",
                         subdef->name,
                         type_ref_is_inplace(ref)? "&": "",
                         field->name);
+                    fprintf(file, "            break;\n");
                 }
             }
             fprintf(file, "        default: break;\n");

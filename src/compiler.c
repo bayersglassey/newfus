@@ -38,75 +38,156 @@ typedef struct sorted_def {
 } sorted_def_t;
 
 static int compiler_sort_inplace_refs(compiler_t *compiler) {
-    /* This function implements a sort of a partial ordering, compiler->defs.
-    The partial ordering is this: defs should come after any defs they have an
+    /* This function sorts compiler->defs.
+    In particular, defs are sorted to come after any defs they have an
     inplace reference to (e.g. array subdef, struct/union field). */
+
+    /* Returned at end of function */
+    int err = 0;
 
 
     /************** ALLOCATE & INITIALIZE *************/
 
-    sorted_def_t *sorted_defs = calloc(compiler->defs.len,
-        sizeof(*sorted_defs));
-    if (!sorted_defs) return 1;
+    sorted_def_t *sorted_defs = NULL;
+    type_def_t **new_defs = NULL;
+
+    sorted_defs = calloc(compiler->defs.len, sizeof(*sorted_defs));
+    if (!sorted_defs) {
+        err = 1;
+        goto end;
+    }
 
     /* new_defs: array which will replace compiler->defs.elems */
-    type_def_t **new_defs = calloc(compiler->defs.len, sizeof(*new_defs));
+    new_defs = calloc(compiler->defs.size, sizeof(*new_defs));
     if (!new_defs) {
-        free(sorted_defs);
-        return 1;
+        err = 1;
+        goto end;
     }
 
     /* Populate sorted_defs */
     for (int i = 0; i < compiler->defs.len; i++) {
         type_def_t *def = compiler->defs.elems[i];
         sorted_def_t *sorted_def = &sorted_defs[i];
+
+        /* Populate sorted_def->def */
         sorted_def->def = def;
 
+        /* Populate other sorted_defs' has_inplace_refs, by following this
+        def's inplace refs */
         type_t *type = &def->type;
         switch (type->tag) {
             case TYPE_TAG_ARRAY: {
-                type_def_t *subdef = type_get_def(type);
-                if (subdef && subdef != def) {
-                    sorted_defs[_get_def_i(compiler, subdef)].has_inplace_refs = 1;
+                type_ref_t *ref = type->u.array_f.subtype_ref;
+                if (type_ref_is_inplace(ref)) {
+                    type_def_t *subdef = type_get_def(&ref->type);
+                    if (subdef) {
+                        sorted_def_t *sorted_def = &sorted_defs[
+                            _get_def_i(compiler, type_def_unalias(subdef))];
+                        sorted_def->has_inplace_refs = 1;
+                    }
                 }
                 break;
             }
             case TYPE_TAG_STRUCT: case TYPE_TAG_UNION: {
                 ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                     type_ref_t *ref = &field->ref;
-                    type_def_t *subdef = type_get_def(&ref->type);
-                    if (subdef && subdef != def) {
-                        sorted_defs[_get_def_i(compiler, subdef)].has_inplace_refs = 1;
+                    if (type_ref_is_inplace(ref)) {
+                        type_def_t *subdef = type_get_def(&ref->type);
+                        if (subdef) {
+                            sorted_def_t *sorted_def = &sorted_defs[
+                                _get_def_i(compiler, type_def_unalias(subdef))];
+                            sorted_def->has_inplace_refs = 1;
+                        }
                     }
                 }
-                break;
-            }
-            case TYPE_TAG_ALIAS: {
                 break;
             }
             default: break;
         }
     }
 
-    /* Length of new_defs, in the sense of number of elements populated
-    so far (when >= compiler->defs.len, we are done our breadth-first
-    traversal). */
-    size_t new_defs_len = 0;
-
 
     /************** THE ALGORITHM *************/
 
+    /* Pointer to the end of new_defs, so that we can push defs onto the
+    end of it easily, using the expression: *(--new_defs_end) = def
+    NOTE: by "end" I mean... uhhh... the start. O_o
+    But we're treating new_defs as a stack which fills up from the right.
+    So new_defs_end is the *left* side of the stack, where things are pushed.
+    Do you see?.. */
+    type_def_t **new_defs_end = new_defs + compiler->defs.len;
+
     /* Push "root" defs (ones with no references to them) onto the new_defs
     queue */
-    for (int i = 0; i < compiler->defs.len; i++) {
+    for (int i = compiler->defs.len - 1; i >= 0; i--) {
         type_def_t *def = compiler->defs.elems[i];
-        if (!sorted_defs[_get_def_i(compiler, def)].has_inplace_refs) continue;
-        new_defs[new_defs_len++] = compiler->defs.elems[i];
+        sorted_def_t *sorted_def = &sorted_defs[_get_def_i(compiler, def)];
+        if (sorted_def->has_inplace_refs) continue;
+
+        /* Push def */
+        *(--new_defs_end) = def;
+        sorted_def->sorted = 1;
     }
 
-    for (int i = 0; i < compiler->defs.len; i++) {
-        type_def_t *def = compiler->defs.elems[i];
-        (void) def;
+    /* Iterate over new_defs from the end, treating it as a queue, finding
+    each def's inplace refs and pushing their defs onto new_defs.
+    At the end of this process, new_defs should be completely populated. */
+    for (int i = compiler->defs.len - 1; i >= 0; i--) {
+        sorted_def_t *sorted_def = &sorted_defs[i];
+        type_def_t *def = sorted_def->def;
+
+        /* Populate other sorted_defs' has_inplace_refs, by following this
+        def's inplace refs */
+        type_t *type = &def->type;
+        switch (type->tag) {
+            case TYPE_TAG_ARRAY: {
+                type_ref_t *ref = type->u.array_f.subtype_ref;
+                if (type_ref_is_inplace(ref)) {
+                    type_def_t *subdef = type_get_def(&ref->type);
+                    if (subdef) {
+                        sorted_def_t *sorted_def = &sorted_defs[
+                            _get_def_i(compiler, type_def_unalias(subdef))];
+                        if (!sorted_def->sorted) {
+                            sorted_def->sorted = 1;
+                            *(--new_defs_end) = sorted_def->def;
+                        }
+                    }
+                }
+                break;
+            }
+            case TYPE_TAG_STRUCT: case TYPE_TAG_UNION: {
+                ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
+                    type_ref_t *ref = &field->ref;
+                    if (type_ref_is_inplace(ref)) {
+                        type_def_t *subdef = type_get_def(&ref->type);
+                        if (subdef) {
+                            sorted_def_t *sorted_def = &sorted_defs[
+                                _get_def_i(compiler, type_def_unalias(subdef))];
+                            if (!sorted_def->sorted) {
+                                sorted_def->sorted = 1;
+                                *(--new_defs_end) = sorted_def->def;
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+            default: break;
+        }
+    }
+
+    if (new_defs_end != new_defs) {
+        /* This should never happen.
+        If it does... maybe we want some better logging here, like... a list
+        of all defs which *were* visited?..
+        (I don't think we can easily detect which ones *weren't* visited) */
+        fprintf(stderr,
+            "Not all defs were visited during breadth-first traversal\n");
+        fprintf(stderr, "(Missing %zu defs out of %zu)\n",
+            new_defs_end - new_defs,
+            compiler->defs.len);
+        err = 2;
+        goto end;
     }
 
 
@@ -115,10 +196,13 @@ static int compiler_sort_inplace_refs(compiler_t *compiler) {
     /* Replace compiler->defs.elems with new_defs */
     free(compiler->defs.elems);
     compiler->defs.elems = new_defs;
+    new_defs = NULL;
 
+end:
     /* Hooray let's all go home now */
     free(sorted_defs);
-    return 0;
+    free(new_defs);
+    return err;
 }
 
 static int _compare_aliases(const void *ptr1, const void *ptr2) {
@@ -153,7 +237,7 @@ static int _compare_aliases(const void *ptr1, const void *ptr2) {
 static int compiler_sort_aliases(compiler_t *compiler) {
 
     /* new_defs: will replace compiler->defs.elems, once we sort them in it */
-    type_def_t **new_defs = malloc(compiler->defs.len * sizeof(*new_defs));
+    type_def_t **new_defs = calloc(compiler->defs.size, sizeof(*new_defs));
     if (!new_defs) return 1;
 
     /* Copy all non-alias defs into new_defs */
@@ -202,14 +286,16 @@ int compiler_compile(compiler_t *compiler, const char *buffer,
 
     if (!compiler_validate(compiler)) return 2;
 
-    /* Sort compiler->defs such that aliases come after their subdefs */
-    err = compiler_sort_aliases(compiler);
-    if (err) return err;
+    if (compiler->defs.len) {
+        /* Sort compiler->defs such that aliases come after their subdefs */
+        err = compiler_sort_aliases(compiler);
+        if (err) return err;
 
-    /* Sort compiler->defs such that arrays/structs/unions come after any
-    defs they have an inplace reference to. */
-    //err = compiler_sort_inplace_refs(compiler);
-    //if (err) return err;
+        /* Sort compiler->defs such that arrays/structs/unions come after any
+        defs they have an inplace reference to. */
+        err = compiler_sort_inplace_refs(compiler);
+        if (err) return err;
+    }
 
     lexer_unload(lexer);
     return 0;

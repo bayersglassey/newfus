@@ -177,6 +177,12 @@ static type_t *type_unalias(type_t *type) {
     return type;
 }
 
+/* Follow aliases until we get to the "real" underlying def */
+static type_def_t *type_def_unalias(type_def_t *def) {
+    while (def->type.tag == TYPE_TAG_ALIAS) def = def->type.u.alias_f.def;
+    return def;
+}
+
 static bool type_ref_is_inplace(type_ref_t *ref) {
     if (ref->is_inplace) return true;
 
