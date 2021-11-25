@@ -86,74 +86,6 @@ static const char *_build_field_tag_name(stringstore_t *store,
 
 
 
-void compiler_init(compiler_t *compiler, lexer_t *lexer,
-    stringstore_t *store
-) {
-    memset(compiler, 0, sizeof(*compiler));
-    compiler->lexer = lexer;
-    compiler->store = store;
-}
-
-void compiler_cleanup(compiler_t *compiler) {
-    ARRAY_FREE_PTR(compiler->defs, type_def_cleanup)
-    ARRAY_FREE_PTR(compiler->bindings, compiler_binding_cleanup)
-}
-
-void compiler_dump(compiler_t *compiler, FILE *file) {
-    fprintf(file, "Compiler %p:\n", compiler);
-
-    fprintf(file, "Bindings:\n");
-    for (int i = 0; i < compiler->bindings.len; i++) {
-        compiler_binding_t *binding = compiler->bindings.elems[i];
-        fprintf(file, "  %i/%zu: %s -> %s\n", i, compiler->bindings.len,
-            binding->name, binding->def->name);
-    }
-
-    fprintf(file, "Defs:\n");
-    for (int i = 0; i < compiler->defs.len; i++) {
-        type_def_t *def = compiler->defs.elems[i];
-        fprintf(file, "  %i/%zu: %s (%s)", i, compiler->defs.len, def->name,
-            type_tag_sym(def->type.tag));
-        switch (def->type.tag) {
-            case TYPE_TAG_ARRAY: {
-                type_t *subtype = &def->type.u.array_f.subtype_ref->type;
-                fprintf(stderr, " -> (%s)", type_tag_sym(subtype->tag));
-                type_def_t *def = type_get_def(subtype);
-                if (def) fprintf(stderr, " -> %s", def->name);
-                fputc('\n', stderr);
-                break;
-            }
-            case TYPE_TAG_STRUCT: case TYPE_TAG_UNION: {
-                fputc('\n', stderr);
-                arrayof_inplace_type_field_t *fields = &def->type.u.struct_f.fields;
-                for (int i = 0; i < fields->len; i++) {
-                    type_field_t *field = &fields->elems[i];
-                    fprintf(stderr, "    %s (%s)", field->name,
-                        type_tag_sym(field->ref.type.tag));
-                    type_def_t *def = type_get_def(&field->ref.type);
-                    if (def) fprintf(stderr, " -> %s", def->name);
-                    fputc('\n', stderr);
-                }
-                break;
-            }
-            case TYPE_TAG_ALIAS: {
-                fprintf(stderr, " -> %s\n", def->type.u.alias_f.def->name);
-                break;
-            }
-            default: {
-                fputc('\n', stderr);
-                break;
-            }
-        }
-    }
-}
-
-void compiler_binding_cleanup(compiler_binding_t *binding) {
-    /* Nuthin */
-}
-
-
-
 static const char *compiler_get_packaged_name(compiler_t *compiler, const char *name) {
     if (!compiler->package_name) return name;
     return _const_strjoin3(compiler->store,
@@ -450,6 +382,9 @@ static int compiler_parse_type(compiler_t *compiler,
     } else if (GOT("any")) {
         NEXT
         type->tag = TYPE_TAG_ANY;
+    } else if (GOT("type")) {
+        NEXT
+        type->tag = TYPE_TAG_TYPE;
     } else if (GOT("int")) {
         NEXT
         type->tag = TYPE_TAG_INT;

@@ -19,6 +19,9 @@ struct compiler {
     ARRAYOF(compiler_binding_t *) bindings;
     ARRAYOF(type_def_t *) defs;
 
+    const char *any_type_name;
+    const char *type_type_name;
+
     /* can_rebind: whether bindings can be redefined, e.g. with "from" */
     bool can_rebind;
 

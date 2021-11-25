@@ -5,15 +5,18 @@
 
 
 
-void _write_type_name(type_t *type, FILE *file) {
+void _write_type_name(compiler_t *compiler, type_t *type, FILE *file) {
     switch (type->tag) {
         case TYPE_TAG_VOID:
             /* C doesn't like fields being declared with void, so we use
             a char instead. */
-            fprintf(file, "char");
+            fprintf(file, "char /* void */");
             break;
         case TYPE_TAG_ANY:
-            fprintf(file, "any_t");
+            fprintf(file, "%s_t", compiler->any_type_name);
+            break;
+        case TYPE_TAG_TYPE:
+            fprintf(file, "%s_t", compiler->type_type_name);
             break;
         case TYPE_TAG_SYM:
             fprintf(file, "const char *");
@@ -75,6 +78,12 @@ void compiler_write_cfile(compiler_t *compiler, FILE *file) {
 }
 
 void compiler_write_typedefs(compiler_t *compiler, FILE *file) {
+
+    fprintf(file, "typedef struct %s %s_t;\n",
+        compiler->any_type_name, compiler->any_type_name);
+    fprintf(file, "typedef struct %s %s_t;\n",
+        compiler->type_type_name, compiler->type_type_name);
+
     ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
         type_t *type = &def->type;
 
@@ -90,7 +99,7 @@ void compiler_write_typedefs(compiler_t *compiler, FILE *file) {
                 fprintf(file, "struct %s", type->u.struct_f.def->name);
                 break;
             default:
-                _write_type_name(type, file);
+                _write_type_name(compiler, type, file);
                 break;
         }
         fprintf(file, " %s_t;\n", def->name);
@@ -112,8 +121,8 @@ void compiler_write_enums(compiler_t *compiler, FILE *file) {
     }
 }
 
-void _write_type_ref(type_ref_t *ref, FILE *file) {
-    _write_type_name(&ref->type, file);
+void _write_type_ref(compiler_t *compiler, type_ref_t *ref, FILE *file) {
+    _write_type_name(compiler, &ref->type, file);
     if (!type_ref_is_inplace(ref)) {
         fputc('*', file);
     }
@@ -121,6 +130,16 @@ void _write_type_ref(type_ref_t *ref, FILE *file) {
 
 void compiler_write_structs(compiler_t *compiler, FILE *file) {
     /* NOTE: writes C structs for fus structs, unions, and arrays. */
+
+    fprintf(file, "struct %s {\n", compiler->any_type_name);
+    fprintf(file, "    %s_t *type;\n", compiler->type_type_name);
+    fprintf(file, "    void *value;\n");
+    fprintf(file, "};\n");
+    fprintf(file, "struct %s {\n", compiler->type_type_name);
+    fprintf(file, "    const char *name;\n");
+    fprintf(file, "    /* TODO: tag and union with type's details, e.g. fields */\n");
+    fprintf(file, "    void (*cleanup_voidstar)(void *it);\n");
+    fprintf(file, "};\n");
 
     ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
         type_t *type = &def->type;
@@ -132,7 +151,7 @@ void compiler_write_structs(compiler_t *compiler, FILE *file) {
                 fprintf(file, "    size_t len;\n");
 
                 fprintf(file, "    ");
-                _write_type_ref(type->u.array_f.subtype_ref, file);
+                _write_type_ref(compiler, type->u.array_f.subtype_ref, file);
                 fprintf(file, " *elems;\n");
 
                 fprintf(file, "};\n");
@@ -142,7 +161,7 @@ void compiler_write_structs(compiler_t *compiler, FILE *file) {
                 fprintf(file, "struct %s {\n", def->name);
                 ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                     fprintf(file, "    ");
-                    _write_type_ref(&field->ref, file);
+                    _write_type_ref(compiler, &field->ref, file);
                     fprintf(file, " %s;\n", field->name);
                 }
                 fprintf(file, "};\n");
@@ -154,7 +173,7 @@ void compiler_write_structs(compiler_t *compiler, FILE *file) {
                 fprintf(file, "    union {\n");
                 ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                     fprintf(file, "        ");
-                    _write_type_ref(&field->ref, file);
+                    _write_type_ref(compiler, &field->ref, file);
                     fprintf(file, " %s;\n", field->name);
                 }
                 fprintf(file, "    } u;\n");
@@ -167,6 +186,16 @@ void compiler_write_structs(compiler_t *compiler, FILE *file) {
 }
 
 void compiler_write_prototypes(compiler_t *compiler, FILE *file) {
+
+    fprintf(file, "void %s_cleanup(%s_t *it);\n",
+        compiler->any_type_name, compiler->any_type_name);
+    fprintf(file, "void %s_cleanup_voidstar(void *it);\n",
+        compiler->any_type_name);
+    fprintf(file, "#define %s_cleanup (void)\n",
+        compiler->type_type_name);
+    fprintf(file, "#define %s_cleanup_voidstar (void)\n",
+        compiler->type_type_name);
+
     ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
         type_t *type = &def->type;
 
@@ -195,12 +224,17 @@ void compiler_write_prototypes(compiler_t *compiler, FILE *file) {
             if (type->tag == TYPE_TAG_ALIAS) {
                 fprintf(file, "#define %s_cleanup %s_cleanup\n",
                     def->name, subdef->name);
+                fprintf(file, "#define %s_cleanup %s_cleanup_voidstar\n",
+                    def->name, subdef->name);
             } else {
                 fprintf(file, "void %s_cleanup(%s_t *it);\n",
                     def->name, def->name);
+                fprintf(file, "void %s_cleanup_voidstar(void *it);\n",
+                    def->name);
             }
         } else {
             fprintf(file, "#define %s_cleanup (void)\n", def->name);
+            fprintf(file, "#define %s_cleanup_voidstar (void)\n", def->name);
         }
     }
 }
@@ -275,9 +309,21 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
     fprintf(file, "    memset(it, 0, sizeof(*it));\n");
 
     fprintf(file, "}\n");
+    fprintf(file, "void %s_cleanup_voidstar(void *it) { %s_cleanup((%s_t *) it); }\n",
+        def->name, def->name, def->name);
 }
 
 void compiler_write_functions(compiler_t *compiler, FILE *file) {
+
+    fprintf(file, "void %s_cleanup(%s_t *it) {\n",
+        compiler->any_type_name, compiler->any_type_name);
+    fprintf(file, "    if (!it->type || !it->type->cleanup_voidstar) return;\n");
+    fprintf(file, "    it->type->cleanup_voidstar(it->value);\n");
+    fprintf(file, "}\n");
+    fprintf(file, "void %s_cleanup_voidstar(void *it) { %s_cleanup((%s_t *) it); }\n",
+        compiler->any_type_name, compiler->any_type_name,
+        compiler->any_type_name);
+
     ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
         _write_cleanup(def, file);
     }

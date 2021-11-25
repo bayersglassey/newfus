@@ -27,7 +27,6 @@ DECLARE_TYPE(type_array)
 DECLARE_TYPE(type_struct)
 DECLARE_TYPE(type_alias)
 DECLARE_TYPE(type)
-DECLARE_TYPE(any)
 
 typedef ARRAYOF(type_field_t) arrayof_inplace_type_field_t;
 
@@ -35,6 +34,7 @@ typedef ARRAYOF(type_field_t) arrayof_inplace_type_field_t;
 enum type_tag {
     TYPE_TAG_VOID,
     TYPE_TAG_ANY,
+    TYPE_TAG_TYPE,
     TYPE_TAG_INT,
     TYPE_TAG_SYM,
     TYPE_TAG_BOOL,
@@ -61,6 +61,7 @@ static const char *type_tag_sym(int tag) {
     switch (tag) {
         case TYPE_TAG_VOID: return "void";
         case TYPE_TAG_ANY: return "any";
+        case TYPE_TAG_TYPE: return "type";
         case TYPE_TAG_INT: return "int";
         case TYPE_TAG_SYM: return "sym";
         case TYPE_TAG_BOOL: return "bool";
@@ -156,18 +157,11 @@ struct type_def {
     so maybe type_def_t belongs in compiler.h not type.h?..
     But then type_{array,struct,alias}_t should have const char *name
     instead of type_def_t *def, right?
-    Hmmmmm. */
-    bool is_extern;
-};
+    Hmmmmm.
 
-struct any {
-    /* TODO: can any's ref be inplace? No. Can it be a weakref? Yes.
-    How about a ref to an array? It's inplace by default. Can it be made
-    non-inplace? Certainly not UNLESS it can be made weakref.
-    So okay, both any and array share this property that it makes sense
-    to allow them to be weakref, but otherwise they are always inplace. */
-    type_ref_t type_ref;
-    void *value;
+    TODO: replace with an explicit TYPE_TAG_EXTERN, for which is_pointer
+    is true, and whose syntax is "extern: NAME" */
+    bool is_extern;
 };
 
 
