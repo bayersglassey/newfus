@@ -48,9 +48,10 @@ int _compile(compiler_t *compiler, int n_filenames, char **filenames) {
 
         err = compiler_compile(compiler, buffer, filename);
         if (err) {
-            fprintf(stderr, "Compilation failed!\n");
-            stringstore_dump(compiler->store, stderr);
-            compiler_dump(compiler, stderr);
+            if (debug) {
+                stringstore_dump(compiler->store, stderr);
+                compiler_dump(compiler, stderr);
+            }
             return err;
         }
 

@@ -550,6 +550,11 @@ int compiler_parse_defs(compiler_t *compiler) {
             GET_CONST_NAME(package_name, compiler->store)
             GET_CLOSE
 
+            /* The magic name "_" means "no package" */
+            if (package_name[0] == '_' && package_name[1] == '\0') {
+                package_name = NULL;
+            }
+
             compiler->package_name = package_name;
         } else if (GOT("from")) {
             NEXT
@@ -596,8 +601,8 @@ int compiler_parse_defs(compiler_t *compiler) {
         }
     }
 
-    if (!lexer_done(lexer)) {
-        return lexer_unexpected(lexer, "end of file");
+    if (!DONE) {
+        return UNEXPECTED("end of file");
     }
 
     return 0;

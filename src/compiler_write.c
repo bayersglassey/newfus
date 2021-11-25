@@ -47,6 +47,7 @@ void compiler_write_hfile(compiler_t *compiler, FILE *file) {
 
     fprintf(file, "#include <stdio.h>\n");
     fprintf(file, "#include <stdlib.h>\n");
+    fprintf(file, "#include <stdbool.h>\n");
     fprintf(file, "#include <string.h>\n");
     fputc('\n', file);
 
