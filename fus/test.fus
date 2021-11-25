@@ -43,6 +43,16 @@ typedef B: int
 
 
 ##################################################################
+package: _
+
+# no_package_int_t
+typedef no_package_int: int
+
+# no_package_int_alias
+typedef no_package_int_alias: @@no_package_int
+
+
+##################################################################
 package: test
 
 from util_math:
