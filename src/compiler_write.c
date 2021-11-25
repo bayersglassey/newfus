@@ -36,7 +36,7 @@ void _write_type_name(type_t *type, FILE *file) {
             fprintf(file, "XXX_UNDEFINED_XXX");
             break;
         default:
-            fputs(type_tag_string(type->tag), file);
+            fputs(type_tag_sym(type->tag), file);
             break;
     }
 }

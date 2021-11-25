@@ -29,13 +29,13 @@ static bool _validate_ref_recurse(type_ref_t *ref, type_t *type) {
 
     if (ref->is_inplace && !is_pointer) {
         fprintf(stderr, "\"inplace\" reference not allowed to: %s\n",
-            type_tag_string(type->tag));
+            type_tag_sym(type->tag));
         ok = false;
     }
 
     if (ref->is_weakref && !is_pointer) {
         fprintf(stderr, "\"weakref\" reference not allowed to: %s\n",
-            type_tag_string(type->tag));
+            type_tag_sym(type->tag));
         ok = false;
     }
 

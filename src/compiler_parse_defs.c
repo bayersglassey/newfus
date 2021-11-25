@@ -42,7 +42,7 @@ static const char *_build_array_type_name(stringstore_t *store,
             elem_type_name = subtype_ref->type.u.alias_f.def->name;
             break;
         default:
-            elem_type_name = type_tag_string(subtype_ref->type.tag);
+            elem_type_name = type_tag_sym(subtype_ref->type.tag);
             break;
     }
 
@@ -113,11 +113,11 @@ void compiler_dump(compiler_t *compiler, FILE *file) {
     for (int i = 0; i < compiler->defs.len; i++) {
         type_def_t *def = compiler->defs.elems[i];
         fprintf(file, "  %i/%zu: %s (%s)", i, compiler->defs.len, def->name,
-            type_tag_string(def->type.tag));
+            type_tag_sym(def->type.tag));
         switch (def->type.tag) {
             case TYPE_TAG_ARRAY: {
                 type_t *subtype = &def->type.u.array_f.subtype_ref->type;
-                fprintf(stderr, " -> (%s)", type_tag_string(subtype->tag));
+                fprintf(stderr, " -> (%s)", type_tag_sym(subtype->tag));
                 type_def_t *def = type_get_def(subtype);
                 if (def) fprintf(stderr, " -> %s", def->name);
                 fputc('\n', stderr);
@@ -129,7 +129,7 @@ void compiler_dump(compiler_t *compiler, FILE *file) {
                 for (int i = 0; i < fields->len; i++) {
                     type_field_t *field = &fields->elems[i];
                     fprintf(stderr, "    %s (%s)", field->name,
-                        type_tag_string(field->ref.type.tag));
+                        type_tag_sym(field->ref.type.tag));
                     type_def_t *def = type_get_def(&field->ref.type);
                     if (def) fprintf(stderr, " -> %s", def->name);
                     fputc('\n', stderr);
@@ -252,7 +252,7 @@ static int compiler_get_or_add_array_def(compiler_t *compiler,
         if (def->type.tag != TYPE_TAG_ARRAY) {
             fprintf(stderr,
                 "Def already exists, and is not an array: %s (%s)",
-                    array_type_name, type_tag_string(def->type.tag));
+                    array_type_name, type_tag_sym(def->type.tag));
             type_def_t *subdef = type_get_def(&def->type);
             if (subdef) fprintf(stderr, " -> %s", subdef->name);
             fputc('\n', stderr);

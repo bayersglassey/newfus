@@ -57,7 +57,7 @@ static bool type_tag_is_pointer(int tag) {
         tag == TYPE_TAG_UNDEFINED;
 }
 
-static const char *type_tag_string(int tag) {
+static const char *type_tag_sym(int tag) {
     switch (tag) {
         case TYPE_TAG_VOID: return "void";
         case TYPE_TAG_ANY: return "any";
