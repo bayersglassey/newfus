@@ -149,6 +149,7 @@ Also used to represent struct/union tags, see type_{array,struct,union}_t's
 "def" field */
 struct type_def {
     const char *name;
+    const char *name_upper; /* name converted to uppercase */
     type_t type;
 
     /* Reference to a type defined elsewhere (so, TYPE_TAG_UNDEFINED

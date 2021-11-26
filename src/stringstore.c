@@ -75,7 +75,8 @@ const char *stringstore_get(stringstore_t *store, const char *data){
 }
 
 const char *stringstore_get_donate(stringstore_t *store, char *data){
-    /* Caller "donates" (passes ownership of) data to store */
+    /* Caller "donates" (passes ownership of) data to store...
+    unless there's an error! Then caller still owns data. */
     if(!data)return NULL;
 
     const char *found_data = stringstore_find(store, data);

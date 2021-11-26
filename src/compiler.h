@@ -19,8 +19,12 @@ struct compiler {
     ARRAYOF(compiler_binding_t *) bindings;
     ARRAYOF(type_def_t *) defs;
 
-    const char *any_type_name;
-    const char *type_type_name;
+    const char *any_type_name; /* e.g. "any" */
+    const char *any_type_name_upper; /* e.g. "ANY" */
+    const char *type_type_name; /* e.g. "type" */
+    const char *type_type_name_upper; /* e.g. "TYPE" */
+    const char *types_name; /* e.g. "types" */
+    const char *types_name_upper; /* e.g. "TYPES" */
 
     /* can_rebind: whether bindings can be redefined, e.g. with "from" */
     bool can_rebind;
@@ -55,7 +59,9 @@ void compiler_write_cfile(compiler_t *compiler, FILE *file);
 void compiler_write_typedefs(compiler_t *compiler, FILE *file);
 void compiler_write_enums(compiler_t *compiler, FILE *file);
 void compiler_write_structs(compiler_t *compiler, FILE *file);
+void compiler_write_type_declarations(compiler_t *compiler, FILE *file);
 void compiler_write_prototypes(compiler_t *compiler, FILE *file);
+void compiler_write_type_definitions(compiler_t *compiler, FILE *file);
 void compiler_write_functions(compiler_t *compiler, FILE *file);
 
 #endif

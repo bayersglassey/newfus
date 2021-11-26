@@ -47,32 +47,38 @@ void _write_type_name(compiler_t *compiler, type_t *type, FILE *file) {
 
 void compiler_write_hfile(compiler_t *compiler, FILE *file) {
     fputc('\n', file);
-
     fprintf(file, "#include <stdio.h>\n");
     fprintf(file, "#include <stdlib.h>\n");
     fprintf(file, "#include <stdbool.h>\n");
     fprintf(file, "#include <string.h>\n");
-    fputc('\n', file);
 
+    fputc('\n', file);
     fprintf(file, "/* FUS typedefs */\n");
     compiler_write_typedefs(compiler, file);
-    fputc('\n', file);
 
+    fputc('\n', file);
     fprintf(file, "/* FUS enums */\n");
     compiler_write_enums(compiler, file);
-    fputc('\n', file);
 
+    fputc('\n', file);
     fprintf(file, "/* FUS structs */\n");
     compiler_write_structs(compiler, file);
-    fputc('\n', file);
 
+    fputc('\n', file);
+    fprintf(file, "/* FUS types */\n");
+    compiler_write_type_declarations(compiler, file);
+
+    fputc('\n', file);
     fprintf(file, "/* FUS function prototypes */\n");
     compiler_write_prototypes(compiler, file);
 }
 
 void compiler_write_cfile(compiler_t *compiler, FILE *file) {
     fputc('\n', file);
+    fprintf(file, "/* FUS types */\n");
+    compiler_write_type_definitions(compiler, file);
 
+    fputc('\n', file);
     fprintf(file, "/* FUS function definitions */\n");
     compiler_write_functions(compiler, file);
 }
@@ -107,6 +113,27 @@ void compiler_write_typedefs(compiler_t *compiler, FILE *file) {
 }
 
 void compiler_write_enums(compiler_t *compiler, FILE *file) {
+    fprintf(file, "enum %s {\n",
+        compiler->types_name);
+
+    fprintf(file, "    %s_%s,\n",
+        compiler->type_type_name_upper,
+        compiler->any_type_name_upper);
+    fprintf(file, "    %s_%s,\n",
+        compiler->type_type_name_upper,
+        compiler->type_type_name_upper);
+
+    ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
+        fprintf(file, "    %s_%s,\n",
+            compiler->type_type_name_upper,
+            def->name_upper);
+    }
+
+    fprintf(file, "    %s\n",
+        compiler->types_name_upper);
+    fprintf(file, "};\n");
+
+
     ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
         type_t *type = &def->type;
 
@@ -185,6 +212,16 @@ void compiler_write_structs(compiler_t *compiler, FILE *file) {
     }
 }
 
+void compiler_write_type_declarations(compiler_t *compiler, FILE *file) {
+
+    fprintf(file, "extern %s_t %s[%s]; /* Indexed by: enum %s */\n",
+        compiler->type_type_name,
+        compiler->types_name,
+        compiler->types_name_upper,
+        compiler->types_name);
+
+}
+
 void compiler_write_prototypes(compiler_t *compiler, FILE *file) {
 
     fprintf(file, "void %s_cleanup(%s_t *it);\n",
@@ -219,12 +256,12 @@ void compiler_write_prototypes(compiler_t *compiler, FILE *file) {
         }
 
 
-        type_def_t *subdef = type_get_def(type);
-        if (subdef) {
+        if (type_get_def(type_unalias(type))) {
             if (type->tag == TYPE_TAG_ALIAS) {
+                type_def_t *subdef = type_get_def(type);
                 fprintf(file, "#define %s_cleanup %s_cleanup\n",
                     def->name, subdef->name);
-                fprintf(file, "#define %s_cleanup %s_cleanup_voidstar\n",
+                fprintf(file, "#define %s_cleanup_voidstar %s_cleanup_voidstar\n",
                     def->name, subdef->name);
             } else {
                 fprintf(file, "void %s_cleanup(%s_t *it);\n",
@@ -252,8 +289,7 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
     /* Only types with a def have their own cleanup functions, others (e.g.
     int, void) use a macro which expands to the noop prefix operator
     "(void)". */
-    type_def_t *subdef = type_get_def(type);
-    if (!subdef) return;
+    if (!type_get_def(type_unalias(type))) return;
 
     fprintf(file, "void %s_cleanup(%s_t *it) {\n",
         def->name, def->name);
@@ -311,6 +347,52 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
     fprintf(file, "}\n");
     fprintf(file, "void %s_cleanup_voidstar(void *it) { %s_cleanup((%s_t *) it); }\n",
         def->name, def->name, def->name);
+}
+
+void compiler_write_type_definitions(compiler_t *compiler, FILE *file) {
+
+    fprintf(file, "%s_t %s[%s] = { /* Indexed by: enum %s */\n",
+        compiler->type_type_name,
+        compiler->types_name,
+        compiler->types_name_upper,
+        compiler->types_name);
+
+    {
+        /* TYPE_TAG_ANY */
+        fprintf(file, "    {\n");
+        fprintf(file, "        .name = \"%s\",\n",
+            compiler->any_type_name);
+        fprintf(file, "        .cleanup_voidstar = &%s_cleanup_voidstar,\n",
+            compiler->any_type_name);
+        fprintf(file, "    }\n");
+    }
+
+    {
+        /* TYPE_TAG_TYPE */
+        fprintf(file, "    ,{\n");
+        fprintf(file, "        .name = \"%s\",\n",
+            compiler->type_type_name);
+        fprintf(file, "        .cleanup_voidstar = NULL,\n");
+        fprintf(file, "    }\n");
+    }
+
+    ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
+        fprintf(file, "    ,{\n");
+        fprintf(file, "        .name = \"%s\",\n",
+            def->name);
+
+        type_t *type = &def->type;
+        if (type_get_def(type_unalias(type))) {
+            fprintf(file, "        .cleanup_voidstar = &%s_cleanup_voidstar,\n",
+                def->name);
+        } else {
+            fprintf(file, "        .cleanup_voidstar = NULL,\n");
+        }
+
+        fprintf(file, "    }\n");
+    }
+
+    fprintf(file, "};\n");
 }
 
 void compiler_write_functions(compiler_t *compiler, FILE *file) {

@@ -12,7 +12,11 @@ void compiler_init(compiler_t *compiler, lexer_t *lexer,
 ) {
     memset(compiler, 0, sizeof(*compiler));
     compiler->any_type_name = "any";
+    compiler->any_type_name_upper = "ANY";
     compiler->type_type_name = "type";
+    compiler->type_type_name_upper = "TYPE";
+    compiler->types_name = "types";
+    compiler->types_name_upper = "TYPES";
     compiler->lexer = lexer;
     compiler->store = store;
 }

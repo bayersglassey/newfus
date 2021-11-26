@@ -12,7 +12,9 @@ bool debug = false;
 bool write_typedefs = false;
 bool write_enums = false;
 bool write_structs = false;
+bool write_type_decls = false;
 bool write_protos = false;
+bool write_type_defns = false;
 bool write_functions = false;
 bool write_hfile = false;
 bool write_cfile = false;
@@ -30,7 +32,9 @@ static void print_usage(FILE *file) {
         "      --typedefs    Write compiled typedefs to stdout\n"
         "      --enums       Write compiled enums to stdout\n"
         "      --structs     Write compiled C structs (of fus arrays/structs/unions) to stdout\n"
+        "      --type_decls  Write compiled type declarations to stdout\n"
         "      --protos      Write compiled function prototypes to stdout\n"
+        "      --type_defns  Write compiled type definitions to stdout\n"
         "      --functions   Write compiled function definitions to stdout\n"
     );
 }
@@ -67,11 +71,15 @@ int _compile(compiler_t *compiler, int n_filenames, char **filenames) {
     if (write_typedefs) compiler_write_typedefs(compiler, stdout);
     if (write_enums) compiler_write_enums(compiler, stdout);
     if (write_structs) compiler_write_structs(compiler, stdout);
+    if (write_type_decls) compiler_write_type_declarations(compiler, stdout);
     if (write_protos) compiler_write_prototypes(compiler, stdout);
+    if (write_type_defns) compiler_write_type_definitions(compiler, stdout);
     if (write_functions) compiler_write_functions(compiler, stdout);
     if (write_hfile) compiler_write_hfile(compiler, stdout);
     if (write_cfile) compiler_write_cfile(compiler, stdout);
     if (write_main) {
+        fputc('\n', stdout);
+        fprintf(stdout, "/* Dummy main */\n");
         fprintf(stdout, "int main(int n_args, char **args) { return 0; }\n");
     }
 
@@ -96,8 +104,12 @@ int main(int n_args, char **args) {
             write_enums = true;
         } else if (!strcmp(arg, "--structs")) {
             write_structs = true;
+        } else if (!strcmp(arg, "--type_decls")) {
+            write_type_decls = true;
         } else if (!strcmp(arg, "--protos")) {
             write_protos = true;
+        } else if (!strcmp(arg, "--type_defns")) {
+            write_type_defns = true;
         } else if (!strcmp(arg, "--functions")) {
             write_functions = true;
         } else if (!strcmp(arg, "--hfile")) {

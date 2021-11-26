@@ -65,23 +65,35 @@ static const char *_build_array_type_name(stringstore_t *store,
 static const char *_build_union_tags_name(stringstore_t *store,
     const char *struct_name
 ) {
-    char *tags_name = _strjoin2(struct_name, "_tags");
-    if (!tags_name) return NULL;
+    char *_tags_name = _strjoin2(struct_name, "_tags");
+    if (!_tags_name) return NULL;
 
-    _strtoupper(tags_name);
+    _strtoupper(_tags_name);
 
-    return stringstore_get_donate(store, tags_name);
+    const char *tags_name = stringstore_get_donate(store, _tags_name);
+    if (!tags_name) {
+        free(_tags_name);
+        return NULL;
+    }
+
+    return tags_name;
 }
 
 static const char *_build_field_tag_name(stringstore_t *store,
     const char *union_name, const char *field_name
 ) {
-    char *tag_name = _strjoin3(union_name, "_tag_", field_name);
-    if (!tag_name) return NULL;
+    char *_tag_name = _strjoin3(union_name, "_tag_", field_name);
+    if (!_tag_name) return NULL;
 
-    _strtoupper(tag_name);
+    _strtoupper(_tag_name);
 
-    return stringstore_get_donate(store, tag_name);
+    const char *tag_name = stringstore_get_donate(store, _tag_name);
+    if (!tag_name) {
+        free(_tag_name);
+        return NULL;
+    }
+
+    return tag_name;
 }
 
 
@@ -115,9 +127,21 @@ static type_def_t *compiler_get_def(compiler_t *compiler,
 static int compiler_add_def(compiler_t *compiler,
     const char *type_name, type_def_t **def_ptr
 ) {
+
+    char *_type_name_upper = strdup(type_name);
+    if (!_type_name_upper) return 1;
+    _strtoupper(_type_name_upper);
+    const char *type_name_upper = stringstore_get_donate(compiler->store,
+        _type_name_upper);
+    if (!type_name_upper) {
+        free(_type_name_upper);
+        return 1;
+    }
+
     /* NOTE: caller guarantees no def exists with name type_name */
     ARRAY_PUSH_NEW(type_def_t*, compiler->defs, def)
     def->name = type_name;
+    def->name_upper = type_name_upper;
     def->type.tag = TYPE_TAG_UNDEFINED;
     *def_ptr = def;
     return 0;
