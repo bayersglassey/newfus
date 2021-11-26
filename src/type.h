@@ -34,6 +34,7 @@ enum type_tag {
     TYPE_TAG_ANY,
     TYPE_TAG_TYPE,
     TYPE_TAG_INT,
+    TYPE_TAG_ERR,
     TYPE_TAG_STRING,
     TYPE_TAG_BOOL,
     TYPE_TAG_BYTE,
@@ -62,6 +63,7 @@ static const char *type_tag_string(int tag) {
         case TYPE_TAG_ANY: return "any";
         case TYPE_TAG_TYPE: return "type";
         case TYPE_TAG_INT: return "int";
+        case TYPE_TAG_ERR: return "err";
         case TYPE_TAG_STRING: return "string";
         case TYPE_TAG_BOOL: return "bool";
         case TYPE_TAG_BYTE: return "byte";

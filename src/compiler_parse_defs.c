@@ -427,6 +427,9 @@ static int compiler_parse_type(compiler_t *compiler,
     } else if (GOT("int")) {
         NEXT
         type->tag = TYPE_TAG_INT;
+    } else if (GOT("err")) {
+        NEXT
+        type->tag = TYPE_TAG_ERR;
     } else if (GOT("string")) {
         NEXT
         type->tag = TYPE_TAG_STRING;

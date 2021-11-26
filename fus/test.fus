@@ -90,6 +90,8 @@ typedef grid: struct:
     w: int
     h: int
 
+    error: err
+
     # test_grid_cells_elem
     # arrayof_inplace_test_grid_cells_elem
     # arrayof_arrayof_inplace_test_grid_cells_elem

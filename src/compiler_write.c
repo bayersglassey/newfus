@@ -18,6 +18,9 @@ void _write_type_name(compiler_t *compiler, type_t *type, FILE *file) {
         case TYPE_TAG_TYPE:
             fprintf(file, "%s_t", compiler->type_type_name);
             break;
+        case TYPE_TAG_ERR:
+            fprintf(file, "int /* err */");
+            break;
         case TYPE_TAG_STRING:
             fprintf(file, "const char *");
             break;
