@@ -5,10 +5,20 @@ echo "Compiling bin/fusc..." >&2
 ./compile
 echo "Compiled OK!" >&2
 
+FUSC_ARGS=
+while test "$#" -ge 1
+do
+    case "$1" in
+        --) shift; break;;
+        -*) FUSC_ARGS="$FUSC_ARGS $1"; shift;;
+        *) break;;
+    esac
+done
+
 if test "$#" -eq 0
 then
     # Default: names of all .fus files in fus/
-    set -- empty min test type file
+    set -- empty min test type file functions
 fi
 
 
@@ -21,6 +31,6 @@ do
     if test -f fus/"$name".h; then
         echo "#include \"../fus/$name.h\"" >>_test/"$name".c
     fi
-    bin/fusc --hfile --cfile --main fus/"$name".fus >>_test/"$name".c
+    bin/fusc $FUSC_ARGS --hfile --cfile --main fus/"$name".fus >>_test/"$name".c
     gcc --std=c99 -o _test/"$name" _test/"$name".c
 done

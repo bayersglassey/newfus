@@ -9,6 +9,7 @@
 
 
 bool debug = false;
+bool dump = false;
 bool write_typedefs = false;
 bool write_enums = false;
 bool write_structs = false;
@@ -25,7 +26,8 @@ static void print_usage(FILE *file) {
     fprintf(file,
         "Options: [OPTION ...] [--] [FILE ...]\n"
         "  -h  --help        Print this message & exit\n"
-        "  -D  --debug       Dump debug information to stderr\n"
+        "  -D  --debug       Compiler dumps debug information to stderr during compilation\n"
+        "  -d  --dump        Dump debug information to stderr after compilation\n"
         "      --hfile       Write compiled .h file to stdout\n"
         "      --cfile       Write compiled .c file to stdout\n"
         "      --main        Write a dummy main function to stdout\n"
@@ -57,7 +59,7 @@ int _compile(compiler_t *compiler, int n_filenames, char **filenames) {
         fprintf(stderr, "...done compiling: %s\n", filename);
     }
 
-    if (debug) {
+    if (dump) {
         stringstore_dump(compiler->store, stderr);
         compiler_dump(compiler, stderr);
     }
@@ -92,6 +94,8 @@ int main(int n_args, char **args) {
             return 0;
         } else if (!strcmp(arg, "-D") || !strcmp(arg, "--debug")) {
             debug = true;
+        } else if (!strcmp(arg, "-d") || !strcmp(arg, "--dump")) {
+            dump = true;
         } else if (!strcmp(arg, "--typedefs")) {
             write_typedefs = true;
         } else if (!strcmp(arg, "--enums")) {
@@ -128,6 +132,8 @@ int main(int n_args, char **args) {
         lexer_init(&lexer);
         stringstore_init(&stringstore);
         compiler_init(&compiler, &lexer, &stringstore);
+
+        compiler.debug = debug;
 
         err = _compile(&compiler, n_args - arg_i, args + arg_i);
         if (err) {

@@ -1,0 +1,44 @@
+
+package: test
+
+
+struct grid:
+    w: int
+    h: int
+
+    # test_grid_cells_elem
+    # arrayof_inplace_test_grid_cells_elem
+    # arrayof_arrayof_inplace_test_grid_cells_elem
+    cells: array: array: inplace struct:
+        # any
+        data: any
+
+    # test_grid_get_cell
+    # test_grid_cells_elem_t *test_grid_get_cell(int x, int y);
+    get_cell: method:
+        ret: @grid_cells_elem
+        args:
+            x: int
+            y: int
+
+    # test_grid_get_cell_out
+    # If getting a cell was an operation which could potentially result in error:
+    # int test_grid_get_cell_out(int x, int y, test_grid_cells_elem_t **out_cell);
+    get_cell_out: method:
+
+        # This is the default ret value. It's the same as int, except if we
+        # implement scripting then it will have special meaning (we will
+        # automatically generate error-checking code around it).
+        ret: err
+
+        args:
+            x: int
+            y: int
+            cell: out @grid_cells_elem
+
+    # test_action
+    # typedef int /* err */ (*test_action)(const char *string, int i);
+    custom_action: func action:
+        args:
+            name: string
+            i: int

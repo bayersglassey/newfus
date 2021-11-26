@@ -12,21 +12,23 @@
 
 #define DECLARE_TYPE(TYPE) \
 typedef struct TYPE TYPE##_t; \
-void TYPE##_cleanup(TYPE##_t *it); \
-void TYPE##_parse(TYPE##_t *it, lexer_t *lexer, stringstore_t *store); \
-void TYPE##_write(TYPE##_t *it, FILE *file, int depth);
+void TYPE##_cleanup(TYPE##_t *it);
 
 
 DECLARE_TYPE(type_def)
 DECLARE_TYPE(type_ref)
 DECLARE_TYPE(type_field)
+DECLARE_TYPE(type_arg)
+
 DECLARE_TYPE(type_array)
 DECLARE_TYPE(type_struct)
 DECLARE_TYPE(type_alias)
+DECLARE_TYPE(type_func)
 DECLARE_TYPE(type_extern)
 DECLARE_TYPE(type)
 
 typedef ARRAYOF(type_field_t) arrayof_inplace_type_field_t;
+typedef ARRAYOF(type_arg_t) arrayof_inplace_type_arg_t;
 
 
 enum type_tag {
@@ -42,8 +44,9 @@ enum type_tag {
     TYPE_TAG_STRUCT,
     TYPE_TAG_UNION,
     TYPE_TAG_ALIAS,
+    TYPE_TAG_FUNC,
     TYPE_TAG_EXTERN,
-    TYPE_TAG_UNDEFINED, /* For use when compiling */
+    TYPE_TAG_UNDEFINED, /* For use while compiling, otherwise invalid */
     TYPE_TAGS
 };
 
@@ -55,6 +58,15 @@ static bool type_tag_is_pointer(int tag) {
         tag == TYPE_TAG_STRUCT ||
         tag == TYPE_TAG_UNION ||
         tag == TYPE_TAG_EXTERN;
+}
+
+/* Whether this kind of type has a cleanup function associated with it */
+static bool type_tag_has_cleanup(int tag) {
+    return
+        tag == TYPE_TAG_ANY ||
+        tag == TYPE_TAG_ARRAY ||
+        tag == TYPE_TAG_STRUCT ||
+        tag == TYPE_TAG_UNION;
 }
 
 static const char *type_tag_string(int tag) {
@@ -71,6 +83,7 @@ static const char *type_tag_string(int tag) {
         case TYPE_TAG_STRUCT: return "struct";
         case TYPE_TAG_UNION: return "union";
         case TYPE_TAG_ALIAS: return "alias";
+        case TYPE_TAG_FUNC: return "func";
         case TYPE_TAG_EXTERN: return "extern";
         case TYPE_TAG_UNDEFINED: return "undefined";
         default: return "unknown";
@@ -116,6 +129,12 @@ struct type {
         struct type_alias {
             type_def_t *def;
         } alias_f;
+        struct type_func {
+            type_def_t *def;
+
+            type_t *ret;
+            arrayof_inplace_type_arg_t args;
+        } func_f;
         struct type_extern {
             /* Name of a C type to be defined externally */
             const char *extern_name;
@@ -145,6 +164,17 @@ struct type_field {
     const char *tag_name;
 };
 
+/* Represents a function argument */
+struct type_arg {
+    const char *name;
+
+    /* Whether this is an "out argument", that is, a pointer to type */
+    int
+        out  : 1;
+
+    type_t type;
+};
+
 /* Represents a C typedef: a sort of top-level name where types can be
 stored
 Also used to represent struct/union tags, see type_{array,struct,union}_t's
@@ -168,6 +198,12 @@ static type_def_t *type_def_unalias(type_def_t *def) {
     return def;
 }
 
+/* Whether this type has a cleanup function associated with it */
+static bool type_has_cleanup(type_t *type) {
+    type_t *real_type = type_unalias(type);
+    return type_tag_has_cleanup(real_type->tag);
+}
+
 static bool type_ref_is_inplace(type_ref_t *ref) {
     if (ref->is_inplace) return true;
 
@@ -183,6 +219,8 @@ static type_def_t *type_get_def(type_t *type) {
             return type->u.struct_f.def;
         case TYPE_TAG_ALIAS:
             return type->u.alias_f.def;
+        case TYPE_TAG_FUNC:
+            return type->u.func_f.def;
         default: return NULL;
     }
 }

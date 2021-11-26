@@ -15,6 +15,8 @@ DECLARE_TYPE(compiler_binding)
 
 
 struct compiler {
+    bool debug;
+
     const char *package_name;
     ARRAYOF(compiler_binding_t *) bindings;
     ARRAYOF(type_def_t *) defs;
@@ -50,6 +52,7 @@ struct compiler_binding {
 void compiler_init(compiler_t *compiler, lexer_t *lexer,
     stringstore_t *store);
 void compiler_dump(compiler_t *compiler, FILE *file);
+void compiler_debug_info(compiler_t *compiler);
 int compiler_compile(compiler_t *compiler, const char *buffer,
     const char *filename);
 int compiler_parse_defs(compiler_t *compiler);

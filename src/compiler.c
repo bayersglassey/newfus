@@ -67,12 +67,20 @@ void compiler_dump(compiler_t *compiler, FILE *file) {
                 fprintf(stderr, " -> %s\n", def->type.u.alias_f.def->name);
                 break;
             }
+            case TYPE_TAG_FUNC: {
+                fprintf(stderr, " -> %s\n", def->type.u.func_f.def->name);
+                break;
+            }
             default: {
                 fputc('\n', stderr);
                 break;
             }
         }
     }
+}
+
+void compiler_debug_info(compiler_t *compiler) {
+    lexer_info(compiler->lexer, stderr);
 }
 
 void compiler_binding_cleanup(compiler_binding_t *binding) {

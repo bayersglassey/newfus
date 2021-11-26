@@ -36,6 +36,9 @@ void _write_type_name(compiler_t *compiler, type_t *type, FILE *file) {
         case TYPE_TAG_ALIAS:
             fprintf(file, "%s_t", type->u.alias_f.def->name);
             break;
+        case TYPE_TAG_FUNC:
+            fprintf(file, "%s_t", type->u.alias_f.def->name);
+            break;
         case TYPE_TAG_UNDEFINED:
             /* If we get here, it's basically an error situation which should
             have been caught by compiler_validate. */
@@ -105,16 +108,21 @@ void compiler_write_typedefs(compiler_t *compiler, FILE *file) {
         fprintf(file, "typedef ");
         switch (type->tag) {
             case TYPE_TAG_ARRAY:
-                fprintf(file, "struct %s", type->u.array_f.def->name);
+                fprintf(file, "struct %s %s_t;\n", type->u.array_f.def->name,
+                    def->name);
                 break;
             case TYPE_TAG_STRUCT: case TYPE_TAG_UNION:
-                fprintf(file, "struct %s", type->u.struct_f.def->name);
+                fprintf(file, "struct %s %s_t;\n", type->u.struct_f.def->name,
+                    def->name);
+                break;
+            case TYPE_TAG_FUNC:
+                fprintf(file, "void (*%s_t)();\n", def->name);
                 break;
             default:
                 _write_type_name(compiler, type, file);
+                fprintf(file, " %s_t;\n", def->name);
                 break;
         }
-        fprintf(file, " %s_t;\n", def->name);
     }
 }
 
@@ -262,7 +270,7 @@ void compiler_write_prototypes(compiler_t *compiler, FILE *file) {
         }
 
 
-        if (type_get_def(type_unalias(type))) {
+        if (type_has_cleanup(type)) {
             if (type->tag == TYPE_TAG_ALIAS) {
                 type_def_t *subdef = type_get_def(type);
                 fprintf(file, "#define %s_cleanup %s_cleanup\n",
@@ -292,10 +300,8 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
     macros, see compiler_write_prototypes */
     if (type->tag == TYPE_TAG_ALIAS) return;
 
-    /* Only types with a def have their own cleanup functions, others (e.g.
-    int, void) use a macro which expands to the noop prefix operator
-    "(void)". */
-    if (!type_get_def(type_unalias(type))) return;
+    /* If this type has no cleanup function, then we have nothing to do */
+    if (!type_has_cleanup(type)) return;
 
     fprintf(file, "void %s_cleanup(%s_t *it) {\n",
         def->name, def->name);
@@ -303,6 +309,11 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
         case TYPE_TAG_ARRAY: {
             type_ref_t *ref = type->u.array_f.subtype_ref;
             type_def_t *subdef = type_get_def(&ref->type);
+            /* NOTE: we don't bother unaliasing ref->type and checking whether
+            it's a pointer type etc, because that will all be taken care of by
+            _write_cleanup for that type.
+            That is, if ref->type doesn't have a cleanup function, it'll have
+            a #define for it as (void), which is safe to output here. */
             if (subdef && !ref->is_weakref) {
                 fprintf(file, "    for (int i = 0; i < it->len; i++) {\n");
                 fprintf(file, "        %s_cleanup(%sit->elems[i]);\n",
@@ -321,6 +332,8 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
             ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                 type_ref_t *ref = &field->ref;
                 type_def_t *subdef = type_get_def(&ref->type);
+                /* NOTE: we don't bother unaliasing ref->type and checking whether
+                it's a pointer type etc, see similar comment for TYPE_TAG_ARRAY */
                 if (subdef && !ref->is_weakref) {
                     fprintf(file, "    %s_cleanup(%sit->%s);\n",
                         subdef->name,
@@ -339,6 +352,8 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
             ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                 type_ref_t *ref = &field->ref;
                 type_def_t *subdef = type_get_def(&ref->type);
+                /* NOTE: we don't bother unaliasing ref->type and checking whether
+                it's a pointer type etc, see similar comment for TYPE_TAG_ARRAY */
                 if (subdef && !ref->is_weakref) {
                     fprintf(file, "        case %s:\n", field->tag_name);
                     fprintf(file, "            %s_cleanup(%sit->u.%s);\n",
@@ -396,7 +411,7 @@ void compiler_write_type_definitions(compiler_t *compiler, FILE *file) {
             def->name);
 
         type_t *type = &def->type;
-        if (type_get_def(type_unalias(type))) {
+        if (type_has_cleanup(type)) {
             fprintf(file, "        .cleanup_voidstar = &%s_cleanup_voidstar,\n",
                 def->name);
         } else {

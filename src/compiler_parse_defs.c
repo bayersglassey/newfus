@@ -245,6 +245,11 @@ static int compiler_parse_type_ref(compiler_t *compiler,
     int err;
     lexer_t *lexer = compiler->lexer;
 
+    if (compiler->debug) {
+        compiler_debug_info(compiler);
+        fprintf(stderr, "%s: %s\n", __func__, frame->type_name);
+    }
+
     memset(ref, 0, sizeof(*ref));
     ref->type.tag = TYPE_TAG_UNDEFINED;
 
@@ -271,6 +276,11 @@ static int compiler_parse_type_field(compiler_t *compiler,
 
     const char *field_name;
     GET_CONST_NAME(field_name, compiler->store)
+
+    if (compiler->debug) {
+        compiler_debug_info(compiler);
+        fprintf(stderr, "%s: %s / %s\n", __func__, field_name, frame->type_name);
+    }
 
     ARRAY_FOR(type_field_t, *fields, field) {
         if (_streq(field->name, field_name)) {
@@ -306,46 +316,88 @@ static int compiler_parse_type_field(compiler_t *compiler,
     return 0;
 }
 
-static int compiler_parse_struct_or_union_def(compiler_t *compiler,
-    compiler_frame_t *frame, type_def_t **def_ptr
+static int compiler_parse_func(compiler_t *compiler,
+    compiler_frame_t *frame, type_def_t *def
 ) {
     int err;
     lexer_t *lexer = compiler->lexer;
 
-    bool is_union = lexer->token[0] == 'u';
-    NEXT
-
-    /* NOTE: we may be called in one of two ways... either as a top-level
-    "statement" defining a struct, in which case frame == NULL and we require
-    that a type_name be syntactically provided (e.g. "struct NAME: ...");
-    or as a non-top-level "expression" defining a struct, in which case
-    frame != NULL and type_name defaults to frame->type_name. */
-    const char *type_name = frame? frame->type_name: NULL;
-    if (!frame || GOT_NAME) {
-        const char *_type_name;
-        GET_CONST_NAME(_type_name, compiler->store)
-
-        type_name = compiler_get_packaged_name(compiler, _type_name);
-        if (!type_name) return 1;
+    if (compiler->debug) {
+        compiler_debug_info(compiler);
+        fprintf(stderr, "%s: %s / %s\n", __func__, def->name, frame->type_name);
     }
 
-    type_def_t *def;
-    err = compiler_redef_or_add_def(compiler, type_name, &def);
-    if (err) return err;
+    type_t *ret = calloc(1, sizeof(*ret));
+    if (!ret) return 1;
+    ret->tag = TYPE_TAG_ERR;
+
+    memset(&def->type, 0, sizeof(def->type));
+    def->type.tag = TYPE_TAG_FUNC;
+    def->type.u.func_f.def = def;
+    def->type.u.func_f.ret = ret;
+
+    GET_OPEN
+    while (!DONE && !GOT_CLOSE) {
+        if (GOT("ret")) {
+            NEXT
+
+            const char *ret_type_name = _const_strjoin2(compiler->store,
+                def->name, "_ret");
+            if (!ret_type_name) return 1;
+
+            compiler_frame_t subframe = {0};
+            if (frame) subframe = *frame;
+            subframe.type_name = ret_type_name;
+
+            GET_OPEN
+            err = compiler_parse_type(compiler, &subframe, ret);
+            if (err) return err;
+            GET_CLOSE
+        } else if (GOT("args")) {
+            NEXT
+
+            /*
+            compiler_frame_t subframe = {0};
+            if (frame) subframe = *frame;
+            subframe.type_name = def->name;
+            */
+
+            GET_OPEN
+            PARSE_SILENT
+            //while (!DONE && !GOT_CLOSE) {
+            //}
+            GET_CLOSE
+        }
+    }
+    GET_CLOSE
+
+    return 0;
+}
+
+static int compiler_parse_struct_or_union(compiler_t *compiler,
+    compiler_frame_t *frame, type_def_t *def, bool is_union
+) {
+    int err;
+    lexer_t *lexer = compiler->lexer;
+
+    if (compiler->debug) {
+        compiler_debug_info(compiler);
+        fprintf(stderr, "%s: %s / %s\n", __func__, def->name, frame? frame->type_name: "(none)");
+    }
 
     memset(&def->type, 0, sizeof(def->type));
     def->type.tag = is_union? TYPE_TAG_UNION: TYPE_TAG_STRUCT;
     def->type.u.struct_f.def = def;
     if (is_union) {
         const char *tags_name = _build_union_tags_name(compiler->store,
-            type_name);
+            def->name);
         if (!tags_name) return 1;
         def->type.u.struct_f.tags_name = tags_name;
     }
 
     compiler_frame_t subframe = {0};
     if (frame) subframe = *frame;
-    subframe.type_name = type_name;
+    subframe.type_name = def->name;
     GET_OPEN
     while (!DONE && !GOT_CLOSE) {
         if (GOT("!")) {
@@ -364,6 +416,51 @@ static int compiler_parse_struct_or_union_def(compiler_t *compiler,
     }
     GET_CLOSE
 
+    return 0;
+}
+
+static int compiler_parse_struct_or_union_or_func_def(compiler_t *compiler,
+    compiler_frame_t *frame, type_def_t **def_ptr
+) {
+    int err;
+    lexer_t *lexer = compiler->lexer;
+
+    if (compiler->debug) {
+        compiler_debug_info(compiler);
+        fprintf(stderr, "%s: %s\n", __func__, frame? frame->type_name: "(none)");
+    }
+
+    bool is_func = lexer->token[0] == 'f' || lexer->token[0] == 'm';
+    bool is_union = lexer->token[0] == 'u';
+    NEXT
+
+    /* NOTE: we may be called in one of two ways... either as a top-level
+    "statement", in which case frame == NULL and we require that a type_name
+    be syntactically provided (e.g. "struct NAME: ..."); or as a non-top-level
+    "expression", in which case frame != NULL and type_name defaults to
+    frame->type_name. */
+    const char *type_name = frame? frame->type_name: NULL;
+    if (!frame || GOT_NAME) {
+        const char *_type_name;
+        GET_CONST_NAME(_type_name, compiler->store)
+
+        type_name = compiler_get_packaged_name(compiler, _type_name);
+        if (!type_name) return 1;
+    }
+
+    type_def_t *def;
+    err = compiler_redef_or_add_def(compiler, type_name, &def);
+    if (err) return err;
+
+    if (is_func) {
+        err = compiler_parse_func(compiler, frame, def);
+        if (err) return err;
+    } else {
+        err = compiler_parse_struct_or_union(compiler, frame, def,
+            is_union);
+        if (err) return err;
+    }
+
     *def_ptr = def;
     return 0;
 }
@@ -373,6 +470,11 @@ static int compiler_parse_type(compiler_t *compiler,
 ) {
     int err;
     lexer_t *lexer = compiler->lexer;
+
+    if (compiler->debug) {
+        compiler_debug_info(compiler);
+        fprintf(stderr, "%s: %s\n", __func__, frame->type_name);
+    }
 
     if (GOT("@")) {
         NEXT
@@ -446,7 +548,7 @@ static int compiler_parse_type(compiler_t *compiler,
         if (!frame->array_depth) {
             const char *_elem_type_name = _const_strjoin2(compiler->store,
                 elem_type_name, "_elem");
-            if (!elem_type_name) return 1;
+            if (!_elem_type_name) return 1;
 
             elem_type_name = _elem_type_name;
         }
@@ -469,15 +571,16 @@ static int compiler_parse_type(compiler_t *compiler,
         /* Caller gets an *alias* to our array type */
         type->tag = TYPE_TAG_ALIAS;
         type->u.alias_f.def = def;
-    } else if (GOT("struct") || GOT("union")) {
+    } else if (GOT("struct") || GOT("union") || GOT("func") || GOT("method")) {
         type_def_t *def;
-        err = compiler_parse_struct_or_union_def(compiler, frame, &def);
+        err = compiler_parse_struct_or_union_or_func_def(compiler, frame,
+            &def);
         if (err) return err;
 
-        /* If the type to be returned to caller is different than the type living
-        on the def for this struct/union... */
+        /* If the type to be returned to caller is different than the type
+        living on the def for this struct/union/func... */
         if (type != &def->type) {
-            /* Caller gets an *alias* to our struct/union type */
+            /* Caller gets an *alias* to our struct/union/func type */
             type->tag = TYPE_TAG_ALIAS;
             type->u.alias_f.def = def;
         }
@@ -525,9 +628,10 @@ int compiler_parse_defs(compiler_t *compiler) {
             err = compiler_parse_type(compiler, &frame, &def->type);
             if (err) return err;
             GET_CLOSE
-        } else if (GOT("struct") || GOT("union")) {
+        } else if (GOT("struct") || GOT("union") || GOT("func")) {
             type_def_t *def;
-            err = compiler_parse_struct_or_union_def(compiler, NULL, &def);
+            err = compiler_parse_struct_or_union_or_func_def(compiler, NULL,
+                &def);
             if (err) return err;
         } else if (GOT("package")) {
             NEXT
