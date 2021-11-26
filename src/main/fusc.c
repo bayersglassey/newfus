@@ -51,13 +51,7 @@ int _compile(compiler_t *compiler, int n_filenames, char **filenames) {
         if (!buffer) return 1;
 
         err = compiler_compile(compiler, buffer, filename);
-        if (err) {
-            if (debug) {
-                stringstore_dump(compiler->store, stderr);
-                compiler_dump(compiler, stderr);
-            }
-            return err;
-        }
+        if (err) return err;
 
         free(buffer);
         fprintf(stderr, "...done compiling: %s\n", filename);

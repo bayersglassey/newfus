@@ -272,6 +272,13 @@ static int compiler_parse_type_field(compiler_t *compiler,
     const char *field_name;
     GET_CONST_NAME(field_name, compiler->store)
 
+    ARRAY_FOR(type_field_t, *fields, field) {
+        if (_streq(field->name, field_name)) {
+            fprintf(stderr, "Can't redefine field: %s\n", field_name);
+            return 2;
+        }
+    }
+
     const char *field_type_name = _const_strjoin3(compiler->store, frame->type_name,
         "_", field_name);
     if (!field_type_name) return 1;
