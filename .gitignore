@@ -4,5 +4,4 @@ a.out
 
 *.swp
 
-/_test_src
-/_test
+/_test/

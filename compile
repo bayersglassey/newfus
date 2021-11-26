@@ -3,6 +3,7 @@ set -euo pipefail
 mkdir -p bin
 
 gcc \
+    --std=c99 \
     -g -O0 \
     -Wall -Werror \
     -Wno-unused-function \

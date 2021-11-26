@@ -128,7 +128,7 @@ static int compiler_add_def(compiler_t *compiler,
     const char *type_name, type_def_t **def_ptr
 ) {
 
-    char *_type_name_upper = strdup(type_name);
+    char *_type_name_upper = _strdup(type_name);
     if (!_type_name_upper) return 1;
     _strtoupper(_type_name_upper);
     const char *type_name_upper = stringstore_get_donate(compiler->store,

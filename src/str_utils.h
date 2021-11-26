@@ -7,6 +7,14 @@
 #include <string.h>
 
 
+static char *_strdup(const char *s1){
+    size_t s1_len = strlen(s1);
+    char *s2 = malloc(s1_len + 1);
+    if(s2 == NULL)return NULL;
+    strcpy(s2, s1);
+    return s2;
+}
+
 static bool _streq(const char *s1, const char *s2) {
     return s1 == s2 || (s1 && s2 && !strcmp(s1, s2));
 }
