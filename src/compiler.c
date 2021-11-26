@@ -40,11 +40,11 @@ void compiler_dump(compiler_t *compiler, FILE *file) {
     for (int i = 0; i < compiler->defs.len; i++) {
         type_def_t *def = compiler->defs.elems[i];
         fprintf(file, "  %i/%zu: %s (%s)", i, compiler->defs.len, def->name,
-            type_tag_sym(def->type.tag));
+            type_tag_string(def->type.tag));
         switch (def->type.tag) {
             case TYPE_TAG_ARRAY: {
                 type_t *subtype = &def->type.u.array_f.subtype_ref->type;
-                fprintf(stderr, " -> (%s)", type_tag_sym(subtype->tag));
+                fprintf(stderr, " -> (%s)", type_tag_string(subtype->tag));
                 type_def_t *def = type_get_def(subtype);
                 if (def) fprintf(stderr, " -> %s", def->name);
                 fputc('\n', stderr);
@@ -56,7 +56,7 @@ void compiler_dump(compiler_t *compiler, FILE *file) {
                 for (int i = 0; i < fields->len; i++) {
                     type_field_t *field = &fields->elems[i];
                     fprintf(stderr, "    %s (%s)", field->name,
-                        type_tag_sym(field->ref.type.tag));
+                        type_tag_string(field->ref.type.tag));
                     type_def_t *def = type_get_def(&field->ref.type);
                     if (def) fprintf(stderr, " -> %s", def->name);
                     fputc('\n', stderr);

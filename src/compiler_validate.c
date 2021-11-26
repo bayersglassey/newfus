@@ -23,7 +23,7 @@ static bool _validate_ref_recurse(type_ref_t *ref, type_t *type) {
 
     if (ref->is_inplace && !is_pointer) {
         fprintf(stderr, "\"inplace\" reference not allowed to: %s\n",
-            type_tag_sym(type->tag));
+            type_tag_string(type->tag));
         ok = false;
     }
 
@@ -33,7 +33,7 @@ static bool _validate_ref_recurse(type_ref_t *ref, type_t *type) {
     the function's name is <def_name>_cleanup) */
     if (ref->is_weakref && (!is_pointer || !type_get_def(type))) {
         fprintf(stderr, "\"weakref\" reference not allowed to: %s\n",
-            type_tag_sym(type->tag));
+            type_tag_string(type->tag));
         ok = false;
     }
 

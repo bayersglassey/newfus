@@ -10,9 +10,6 @@
 #include "stringstore.h"
 
 
-typedef const char *sym_t;
-
-
 #define DECLARE_TYPE(TYPE) \
 typedef struct TYPE TYPE##_t; \
 void TYPE##_cleanup(TYPE##_t *it); \
@@ -37,7 +34,7 @@ enum type_tag {
     TYPE_TAG_ANY,
     TYPE_TAG_TYPE,
     TYPE_TAG_INT,
-    TYPE_TAG_SYM,
+    TYPE_TAG_STRING,
     TYPE_TAG_BOOL,
     TYPE_TAG_BYTE,
     TYPE_TAG_ARRAY,
@@ -59,13 +56,13 @@ static bool type_tag_is_pointer(int tag) {
         tag == TYPE_TAG_EXTERN;
 }
 
-static const char *type_tag_sym(int tag) {
+static const char *type_tag_string(int tag) {
     switch (tag) {
         case TYPE_TAG_VOID: return "void";
         case TYPE_TAG_ANY: return "any";
         case TYPE_TAG_TYPE: return "type";
         case TYPE_TAG_INT: return "int";
-        case TYPE_TAG_SYM: return "sym";
+        case TYPE_TAG_STRING: return "string";
         case TYPE_TAG_BOOL: return "bool";
         case TYPE_TAG_BYTE: return "byte";
         case TYPE_TAG_ARRAY: return "array";

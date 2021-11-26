@@ -7,7 +7,7 @@ typedef type: union:
     void_f: void
     any_f: void
     int_f: void
-    sym_f: void
+    string_f: void
     bool_f: void
     byte_f: void
     # fus_type_array_t
@@ -23,7 +23,7 @@ typedef type: union:
         fields: array: @type_field
 
 typedef type_def: struct:
-    name: sym
+    name: string
     type: inplace @type
 
 typedef type_ref: struct:
@@ -34,5 +34,5 @@ typedef type_ref: struct:
     is_weakref: bool
 
 typedef type_field: struct:
-    name: sym
+    name: string
     type: inplace @type_ref

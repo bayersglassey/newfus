@@ -18,7 +18,7 @@ void _write_type_name(compiler_t *compiler, type_t *type, FILE *file) {
         case TYPE_TAG_TYPE:
             fprintf(file, "%s_t", compiler->type_type_name);
             break;
-        case TYPE_TAG_SYM:
+        case TYPE_TAG_STRING:
             fprintf(file, "const char *");
             break;
         case TYPE_TAG_BYTE:
@@ -42,7 +42,7 @@ void _write_type_name(compiler_t *compiler, type_t *type, FILE *file) {
             fputs(type->u.extern_f.extern_name, file);
             break;
         default:
-            fputs(type_tag_sym(type->tag), file);
+            fputs(type_tag_string(type->tag), file);
             break;
     }
 }
@@ -246,7 +246,7 @@ void compiler_write_prototypes(compiler_t *compiler, FILE *file) {
         if (type->tag == TYPE_TAG_UNDEFINED) continue;
 
         if (type->tag == TYPE_TAG_UNION) {
-            fprintf(file, "const char *%s_tag_sym(int tag /* enum %s_tag */) {\n",
+            fprintf(file, "const char *%s_tag_string(int tag /* enum %s_tag */) {\n",
                 def->name, def->name);
             fprintf(file, "    switch (tag) {\n");
             ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {

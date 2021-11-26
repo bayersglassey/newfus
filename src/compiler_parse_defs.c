@@ -42,7 +42,7 @@ static const char *_build_array_type_name(stringstore_t *store,
             elem_type_name = subtype_ref->type.u.alias_f.def->name;
             break;
         default:
-            elem_type_name = type_tag_sym(subtype_ref->type.tag);
+            elem_type_name = type_tag_string(subtype_ref->type.tag);
             break;
     }
 
@@ -208,7 +208,7 @@ static int compiler_get_or_add_array_def(compiler_t *compiler,
         if (def->type.tag != TYPE_TAG_ARRAY) {
             fprintf(stderr,
                 "Def already exists, and is not an array: %s (%s)",
-                    array_type_name, type_tag_sym(def->type.tag));
+                    array_type_name, type_tag_string(def->type.tag));
             type_def_t *subdef = type_get_def(&def->type);
             if (subdef) fprintf(stderr, " -> %s", subdef->name);
             fputc('\n', stderr);
@@ -427,9 +427,9 @@ static int compiler_parse_type(compiler_t *compiler,
     } else if (GOT("int")) {
         NEXT
         type->tag = TYPE_TAG_INT;
-    } else if (GOT("sym")) {
+    } else if (GOT("string")) {
         NEXT
-        type->tag = TYPE_TAG_SYM;
+        type->tag = TYPE_TAG_STRING;
     } else if (GOT("bool")) {
         NEXT
         type->tag = TYPE_TAG_BOOL;
@@ -490,7 +490,7 @@ static int compiler_parse_type(compiler_t *compiler,
         type->u.extern_f.extern_name = extern_name;
     } else {
         return UNEXPECTED(
-            "one of: void any int sym bool byte array struct union");
+            "one of: void any int string bool byte array struct union");
     }
 
     return 0;

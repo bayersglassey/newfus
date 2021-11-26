@@ -113,7 +113,7 @@ typedef empty_union: union:
 
 # test_country
 typedef country: struct:
-    name: sym
+    name: string
 
     # test_grid
     grid: inplace @grid
@@ -127,7 +127,7 @@ typedef country: struct:
     # test_country_areas_elem
     # arrayof_test_country_areas_elem
     areas: array: struct:
-        name: sym
+        name: string
 
         # struct test_country_areas_elem_details
         details: union:
@@ -141,6 +141,5 @@ typedef country: struct:
 
             # struct test_country_areas_elem_details_province
             province: struct:
-                # arrayof_sym
-                # (So, is sym_t typedef'd as "const char *"?..)
-                names: array: sym
+                # arrayof_string
+                names: array: string
