@@ -1,0 +1,6 @@
+
+package: io
+
+struct file:
+    !extra_cleanup
+    data: extern: FILE

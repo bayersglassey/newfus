@@ -8,7 +8,7 @@ echo "Compiled OK!" >&2
 if test "$#" -eq 0
 then
     # Default: names of all .fus files in fus/
-    set -- empty min test type
+    set -- empty min test type file
 fi
 
 
@@ -18,6 +18,9 @@ mkdir _test
 for name in "$@"
 do
     echo "========= TESTING: $name ==========" >&2
-    bin/fusc --hfile --cfile --main fus/"$name".fus >_test/"$name".c
+    if test -f fus/"$name".h; then
+        echo "#include \"../fus/$name.h\"" >>_test/"$name".c
+    fi
+    bin/fusc --hfile --cfile --main fus/"$name".fus >>_test/"$name".c
     gcc --std=c99 -o _test/"$name" _test/"$name".c
 done

@@ -93,11 +93,26 @@ struct type {
             type_def_t *def;
             arrayof_inplace_type_field_t fields;
 
+            /* !!! TODO !!!
+            This stuff should all be removed from type_t and moved over to
+            type_def_t, or more to the point, a new struct which lives on
+            only those defs which represent structs/unions.
+            This is probably true of array_f and alias_f as well: we should
+            try to keep type_t small, and for types which have a def, move
+            extra data onto the def.
+            ...although at the end of the day, these C types are only used
+            when compiling, so it's not the end of the world if they're a
+            bit ganky. */
+
             /* E.g. if struct's name is "my_struct", then tags_name
             might be "MY_STRUCT_TAGS"
             (In C, this is an enum value equal to the number of tags/fields
             in this struct/union) */
             const char *tags_name;
+
+            /* Whether our cleanup function expects extra C code to be
+            provided as a macro. */
+            bool extra_cleanup;
         } struct_f;
         struct type_alias {
             type_def_t *def;

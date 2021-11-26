@@ -348,6 +348,16 @@ static int compiler_parse_struct_or_union_def(compiler_t *compiler,
     subframe.type_name = type_name;
     GET_OPEN
     while (!DONE && !GOT_CLOSE) {
+        if (GOT("!")) {
+            NEXT
+            if (GOT("extra_cleanup")) {
+                NEXT
+                def->type.u.struct_f.extra_cleanup = true;
+            } else {
+                return UNEXPECTED("extra_cleanup");
+            }
+            continue;
+        }
         err = compiler_parse_type_field(compiler, &subframe,
             &def->type.u.struct_f.fields, is_union);
         if (err) return err;

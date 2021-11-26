@@ -311,6 +311,10 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
             break;
         }
         case TYPE_TAG_STRUCT: {
+            if (type->u.struct_f.extra_cleanup) {
+                fprintf(file, "    %s_EXTRA_CLEANUP;\n",
+                    def->name_upper);
+            }
             ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                 type_ref_t *ref = &field->ref;
                 type_def_t *subdef = type_get_def(&ref->type);
@@ -324,6 +328,10 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
             break;
         }
         case TYPE_TAG_UNION: {
+            if (type->u.struct_f.extra_cleanup) {
+                fprintf(file, "    %s_EXTRA_CLEANUP;\n",
+                    def->name_upper);
+            }
             fprintf(file, "    switch (it->tag) {\n");
             ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                 type_ref_t *ref = &field->ref;
