@@ -38,6 +38,9 @@ void _write_type_name(compiler_t *compiler, type_t *type, FILE *file) {
             have been caught by compiler_validate. */
             fprintf(file, "XXX_UNDEFINED_XXX");
             break;
+        case TYPE_TAG_EXTERN:
+            fputs(type->u.extern_f.extern_name, file);
+            break;
         default:
             fputs(type_tag_sym(type->tag), file);
             break;

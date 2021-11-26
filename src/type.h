@@ -26,6 +26,7 @@ DECLARE_TYPE(type_field)
 DECLARE_TYPE(type_array)
 DECLARE_TYPE(type_struct)
 DECLARE_TYPE(type_alias)
+DECLARE_TYPE(type_extern)
 DECLARE_TYPE(type)
 
 typedef ARRAYOF(type_field_t) arrayof_inplace_type_field_t;
@@ -43,6 +44,7 @@ enum type_tag {
     TYPE_TAG_STRUCT,
     TYPE_TAG_UNION,
     TYPE_TAG_ALIAS,
+    TYPE_TAG_EXTERN,
     TYPE_TAG_UNDEFINED, /* For use when compiling */
     TYPE_TAGS
 };
@@ -54,7 +56,7 @@ static bool type_tag_is_pointer(int tag) {
     return
         tag == TYPE_TAG_STRUCT ||
         tag == TYPE_TAG_UNION ||
-        tag == TYPE_TAG_UNDEFINED;
+        tag == TYPE_TAG_EXTERN;
 }
 
 static const char *type_tag_sym(int tag) {
@@ -70,6 +72,7 @@ static const char *type_tag_sym(int tag) {
         case TYPE_TAG_STRUCT: return "struct";
         case TYPE_TAG_UNION: return "union";
         case TYPE_TAG_ALIAS: return "alias";
+        case TYPE_TAG_EXTERN: return "extern";
         case TYPE_TAG_UNDEFINED: return "undefined";
         default: return "unknown";
     }
@@ -87,25 +90,6 @@ struct type {
         struct type_struct {
             /* NOTE: used for both structs and unions */
 
-            /* PROBABLY TODO: type->u.struct_f should probably be a POINTER to
-            type_struct_t, to reduce the size of type_t.
-            Maybe the same should be done with type->u.array_f as well.
-
-            IN FACT:
-            array/struct/union stuff should live on their def!..
-            So, type_t owns no pointers, and can be copied around freely.
-            It should look like:
-                struct type {
-                    int tag;
-                    type_def_t *def;
-                };
-            ...where def is only used for TYPE_TAG_{ARRAY/STRUCT/UNION/ALIAS}.
-
-            Then, we can start adding more stuff to these defs, e.g. methods.
-            And in particular, they can include a pointer to their
-            cleanup/parse/write methods, so that TYPE_TAG_ANY can be made to
-            work. */
-
             type_def_t *def;
             arrayof_inplace_type_field_t fields;
 
@@ -118,6 +102,10 @@ struct type {
         struct type_alias {
             type_def_t *def;
         } alias_f;
+        struct type_extern {
+            /* Name of a C type to be defined externally */
+            const char *extern_name;
+        } extern_f;
     } u;
 };
 
@@ -151,18 +139,6 @@ struct type_def {
     const char *name;
     const char *name_upper; /* name converted to uppercase */
     type_t type;
-
-    /* Reference to a type defined elsewhere (so, TYPE_TAG_UNDEFINED
-    is okay).
-    I'm not sure how I feel about this... it seems specific to compiler,
-    so maybe type_def_t belongs in compiler.h not type.h?..
-    But then type_{array,struct,alias}_t should have const char *name
-    instead of type_def_t *def, right?
-    Hmmmmm.
-
-    TODO: replace with an explicit TYPE_TAG_EXTERN, for which is_pointer
-    is true, and whose syntax is "extern: NAME" */
-    bool is_extern;
 };
 
 

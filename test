@@ -18,9 +18,6 @@ mkdir _test
 for name in "$@"
 do
     echo "========= TESTING: $name ==========" >&2
-
-    echo "#include \"../src/test/helpers.h\"" >>_test/"$name".c
-    bin/fusc --hfile --cfile fus/"$name".fus >>_test/"$name".c
-
-    gcc --std=c99 -o _test/"$name" _test/"$name".c src/test/*.c
+    bin/fusc --hfile --cfile --main fus/"$name".fus >_test/"$name".c
+    gcc --std=c99 -o _test/"$name" _test/"$name".c
 done

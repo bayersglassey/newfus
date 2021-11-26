@@ -53,6 +53,16 @@ typedef no_package_int_alias: @@no_package_int
 
 
 ##################################################################
+package: util_math
+
+# util_math_complex
+typedef complex: extern: size_t
+
+# util_math_real
+typedef real: extern: size_t
+
+
+##################################################################
 package: test
 
 from util_math:

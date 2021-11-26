@@ -114,10 +114,8 @@ bool compiler_validate(compiler_t *compiler) {
 
         switch (type->tag) {
             case TYPE_TAG_UNDEFINED: {
-                if (!def->is_extern) {
-                    fprintf(stderr, "Def is undefined: %s\n", def->name);
-                    ok = false;
-                }
+                fprintf(stderr, "Def is undefined: %s\n", def->name);
+                ok = false;
                 break;
             }
             case TYPE_TAG_ARRAY: {

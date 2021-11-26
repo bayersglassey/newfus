@@ -395,8 +395,6 @@ static int compiler_parse_type(compiler_t *compiler,
         err = compiler_get_or_add_def(compiler, packaged_name, &def);
         if (err) return err;
 
-        def->is_extern = true;
-
         /* Type is an alias to def */
         type->tag = TYPE_TAG_ALIAS;
         type->u.alias_f.def = def;
@@ -463,6 +461,16 @@ static int compiler_parse_type(compiler_t *compiler,
             type->tag = TYPE_TAG_ALIAS;
             type->u.alias_f.def = def;
         }
+    } else if (GOT("extern")) {
+        NEXT
+
+        GET_OPEN
+        const char *extern_name;
+        GET_CONST_NAME(extern_name, compiler->store)
+        GET_CLOSE
+
+        type->tag = TYPE_TAG_EXTERN;
+        type->u.extern_f.extern_name = extern_name;
     } else {
         return UNEXPECTED(
             "one of: void any int sym bool byte array struct union");
@@ -533,8 +541,6 @@ int compiler_parse_defs(compiler_t *compiler) {
                 type_def_t *def;
                 err = compiler_get_or_add_def(compiler, packaged_name, &def);
                 if (err) return err;
-
-                def->is_extern = true;
 
                 compiler_binding_t *binding = compiler_get_binding(compiler,
                     name);
