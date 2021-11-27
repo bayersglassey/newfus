@@ -1,8 +1,14 @@
 
 package: graphs
 
-union tree:
+# A binary tree is either a branch, or a leaf containing arbitrary data.
+union bintree:
     branch: struct:
-        left: @tree
-        right: @tree
+        left: @bintree
+        right: @bintree
+    data: any
+
+# A tree has an array of children, and some arbitrary data.
+struct tree:
+    children: array: @tree
     data: any
