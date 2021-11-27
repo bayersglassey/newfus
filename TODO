@@ -1,0 +1,98 @@
+
+TYPE_TAG_FUNC: do we need to do any sorting around these?
+Let's try to come up with some circular function type definitions...
+...hey, we already have one in fus/functions.fus:
+
+    _test/functions.c:12:9: error: unknown type name ‘test_grid_cells_elem_t’
+       12 | typedef test_grid_cells_elem_t* (*test_grid_get_cell_t)();
+
+...at the moment we have the following def-sorting functions:
+    * compiler_sort_inplace_refs
+    * compiler_sort_typedefs
+
+...so do we need a third function for sorting function-types?..
+I think we determined before that "aliases" (i.e. C typedefs) need
+to always come after everything else.
+And our TYPE_TAG_FUNCs just compile to C typedefs.
+So I guess for starters, we could get compiler_sort_typedefs to stick
+them at the end...
+But that doesn't quite resolve everything, really the issue is that
+now we need to sort C typedefs using a breadth-first search (as we do
+for C structs/unions in compiler_sort_inplace_refs) instead of just
+plain qsort (as is currently done by compiler_sort_typedefs).
+Ahhhhh shyyeeeet.
+
+OK OK SO
+We've refactored compiler_sort_inplace_refs, so we now have a nice generic
+compiler_sort_defs, and should be able to use that in compiler_sort_typedefs.
+
+
+
+
+WE NEED TO ALLOW "weakref any".
+
+
+
+
+
+Allow structs/unions to be "unpacked" into each other.
+So like:
+
+    struct A:
+        name: sym
+        !unpack union:
+            number: int
+            string: sym
+
+...compiles to:
+
+    struct A {
+        const char *name;
+        int tag;
+        union {
+            int number;
+            const char *string;
+        } u;
+    };
+
+...k wait a minute. Doesn't it seem more like we want a single TYPE_TAG_STRUCT
+which compiles to a C struct and is allowed to have a single union (int tag + union u)?
+What would syntax for that look like?
+
+    struct A:
+        name: sym
+        !union:
+            number: int
+            string: sym
+
+...and then, is it a syntax error to use "!union" more than once in same struct?
+I don't think so; I think type->u.struct_f just ends up having struct_fields and
+union_fields, and if union_fields is empty then struct is compiled to C with no
+"int tag / union u" combo.
+(What if someone wants to force an empty union with "!union()"?.. probably we
+don't allow it)
+
+
+
+
+We've added TYPE_TAG_FUNCTION, now we need to add methods.
+Function/method type syntax:
+
+    (function | method) [NAME]:
+        [ret: TYPE]
+        args: [NAME([out] TYPE) ...]
+
+...is "self" ("this"?) automatically generated as first argument?..
+No, I think let's actually get rid of "staticmethod" and have all methods
+be "static" in the sense that they just represent C functions with arbitrary
+arguments, *BUT* if we start adding scripting, then we can add a special
+operator which attempts to call a method passing its object as first argument.
+So for now we don't have to worry about that.
+
+
+
+Figure out how parsing and writing are going to work.
+In particular, how is that going to work with weakrefs?
+It would be cool if the fus syntax could do pointers, I guess.
+
+
