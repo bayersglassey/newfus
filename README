@@ -1,0 +1,172 @@
+
+============
+== NEWFUS ==
+============
+
+It's a type system for C!
+Wait, you say. C already has a type system.
+Yes, but this one:
+
+    * Can be interpreted or compiled to C, with transparent interop between the two
+    * Is in some ways simpler than C's type system (e.g. no explicit pointers)
+    * Is in some ways more expressive than C's type system (e.g. explicit weakrefs, methods)
+    * Generates basic C code for you (object cleanup / serialization / deserialization / runtime type info)
+    * Resolves C struct/union/typedef dependency ordering
+    * Generates C types which are easy to work with directly from C code
+    * Comes with a REPL (read-eval-print-loop, a.k.a. "shell")
+
+...or at least, that's the elevator pitch.
+
+It's based on certain patterns of C programming which I got into the habit of,
+and then got tired of keeping track of the boilerplate for.
+
+The intended use cases are for data structures and application programming.
+For low-level stuff you can always drop back down to pure C, and use "extern"
+to refer to it.
+
+
+=== BUILDING & RUNNING
+
+Currently assumes you have gcc available.
+Should be as simple as:
+
+    # Generate ./bin/fusc
+    ./compile
+
+    # See usage instructions
+    ./bin/fusc --help
+
+    # Basic usage (write generated .h and .c contents to stdout)
+    ./bin/fusc --hfile --cfile fus/test.fus
+
+
+=== RUNNING THE TESTS
+
+Should be as simple as:
+
+    ./test
+
+
+=== THE TYPE SYSTEM
+
+TODO: write it all up in detail.
+
+For now, here is a simple example:
+
+    package: graphs
+
+    # A tree is either a branch, or a leaf containing arbitrary data.
+    union tree:
+        branch: struct:
+            left: @tree
+            right: @tree
+        leaf: any
+
+This basically compiles to:
+
+    typedef struct graphs_tree graphs_tree_t;
+    typedef struct graphs_tree_branch graphs_tree_branch_t;
+
+    enum graphs_tree_tag {
+        GRAPHS_TREE_TAG_BRANCH,
+        GRAPHS_TREE_TAG_LEAF,
+        GRAPHS_TREE_TAGS
+    };
+
+    struct graphs_tree {
+        int tag; /* enum graphs_tree_tag */
+        union {
+            graphs_tree_branch_t* branch;
+            any_t leaf;
+        } u;
+    };
+
+    struct graphs_tree_branch {
+        graphs_tree_t* left;
+        graphs_tree_t* right;
+    };
+
+    void graphs_tree_cleanup(graphs_tree_t *it) {
+        switch (it->tag) {
+            case GRAPHS_TREE_TAG_BRANCH:
+                graphs_tree_branch_cleanup(it->u.branch);
+                break;
+            case GRAPHS_TREE_TAG_LEAF:
+                any_cleanup(&it->u.leaf);
+                break;
+            default: break;
+        }
+        memset(it, 0, sizeof(*it));
+    }
+
+    void graphs_tree_branch_cleanup(graphs_tree_branch_t *it) {
+        graphs_tree_cleanup(it->left);
+        graphs_tree_cleanup(it->right);
+        memset(it, 0, sizeof(*it));
+    }
+
+...so we get typedefs, structs, unions, and functions for cleaning up, all for free.
+
+You may notice a reference there to any_t and any_cleanup. What are those?
+Well, apart from the compiled code, newfus outputs some standard stuff which implements
+a runtime type information system in C (only for newfus types, of course).
+Here is most of it:
+
+    typedef struct any any_t;
+    typedef struct type type_t;
+
+    struct any {
+        type_t *type;
+        void *value;
+    };
+
+    struct type {
+        const char *name;
+        void (*cleanup_voidstar)(void *it);
+    };
+
+    enum types {
+        TYPE_ANY,
+        TYPE_TYPE,
+        TYPE_GRAPHS_TREE,
+        TYPE_GRAPHS_TREE_BRANCH,
+        TYPES
+    };
+
+    type_t types[TYPES] = { /* Indexed by: enum types */
+        {
+            .name = "any",
+            .cleanup_voidstar = &any_cleanup_voidstar,
+        }
+        ,{
+            .name = "type",
+            .cleanup_voidstar = NULL,
+        }
+        ,{
+            .name = "graphs_tree",
+            .cleanup_voidstar = &graphs_tree_cleanup_voidstar,
+        }
+        ,{
+            .name = "graphs_tree_branch",
+            .cleanup_voidstar = &graphs_tree_branch_cleanup_voidstar,
+        }
+    };
+
+    void any_cleanup(any_t *it) {
+        if (!it->type || !it->type->cleanup_voidstar) return;
+        it->type->cleanup_voidstar(it->value);
+    }
+
+    /* Trampoline functions for use with type_t's cleanup_voidstar function
+    pointers above: */
+    void any_cleanup_voidstar(void *it) { any_cleanup((any_t *) it); }
+    void graphs_tree_cleanup_voidstar(void *it) { graphs_tree_cleanup((graphs_tree_t *) it); }
+    void graphs_tree_branch_cleanup_voidstar(void *it) { graphs_tree_branch_cleanup((graphs_tree_branch_t *) it); }
+
+...so we can write generic data structures, like our "tree" type above,
+and still get code generated for free.
+
+In this case, the tree owns its data; it's also possible to specify weakrefs
+with the "weakref" keyword.
+(Refcounting and other fancy business is *not* implemented at this time, possibly
+not ever.)
