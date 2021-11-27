@@ -1,0 +1,8 @@
+
+package: graphs
+
+union tree:
+    branch: struct:
+        left: @tree
+        right: @tree
+    data: any
