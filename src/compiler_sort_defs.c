@@ -128,6 +128,9 @@ static void visit_inplace_refs(compiler_t *compiler,
             if (type_ref_is_inplace(ref)) {
                 type_def_t *subdef = type_get_def(&ref->type);
                 if (subdef) {
+                    /* NOTE: we use type_def_unalias here, because we're
+                    ultimately trying to sort C struct definitions, not
+                    C typedefs. */
                     sorted_def_t *sorted_def = &sorted_defs[
                         _get_def_i(compiler, type_def_unalias(subdef))];
                     visit_sorted_def(sorted_def);
@@ -141,10 +144,43 @@ static void visit_inplace_refs(compiler_t *compiler,
                 if (type_ref_is_inplace(ref)) {
                     type_def_t *subdef = type_get_def(&ref->type);
                     if (subdef) {
+                        /* NOTE: we use type_def_unalias here, because we're
+                        ultimately trying to sort C struct definitions, not
+                        C typedefs. */
                         sorted_def_t *sorted_def = &sorted_defs[
                             _get_def_i(compiler, type_def_unalias(subdef))];
                         visit_sorted_def(sorted_def);
                     }
+                }
+            }
+            break;
+        }
+        default: break;
+    }
+}
+
+/* visit_sorted_def_children_t */
+static void visit_typedefs(compiler_t *compiler,
+    type_def_t *def, sorted_def_t *sorted_def,
+    sorted_def_t *sorted_defs, visit_sorted_def_t *visit_sorted_def
+) {
+    type_t *type = &def->type;
+    switch (type->tag) {
+        case TYPE_TAG_ALIAS: {
+            type_def_t *subdef = type->u.alias_f.def;
+            sorted_def_t *sorted_def = &sorted_defs[
+                _get_def_i(compiler, subdef)];
+            visit_sorted_def(sorted_def);
+            break;
+        }
+        case TYPE_TAG_FUNC: {
+            {
+                type_t *subtype = type->u.func_f.ret;
+                type_def_t *subdef = type_get_def(subtype);
+                if (subdef) {
+                    sorted_def_t *sorted_def = &sorted_defs[
+                        _get_def_i(compiler, subdef)];
+                    visit_sorted_def(sorted_def);
                 }
             }
             break;
@@ -289,35 +325,6 @@ int compiler_sort_inplace_refs(compiler_t *compiler) {
     return compiler_sort_defs(compiler, &visit_inplace_refs);
 }
 
-static int _compare_aliases(const void *ptr1, const void *ptr2) {
-    /* For use with qsort.
-    Returns -1 if def1 should come before def2, that is, if def2 is an alias
-    to def1.
-    Returns 1 if the reverse is true.
-    Otherwise, returns 0.
-
-    NOTE: Caller guarantees that def1 and def2 are aliases (TYPE_TAG_ALIAS).
-    */
-    type_def_t *def1 = * (type_def_t **) ptr1;
-    type_def_t *def2 = * (type_def_t **) ptr2;
-
-    /* Check whether def1 is an alias to def2 */
-    for (const type_def_t *def = def1;;) {
-        def = def->type.u.alias_f.def;
-        if (def == def2) return 1;
-        if (def->type.tag != TYPE_TAG_ALIAS) break;
-    }
-
-    /* Check whether def2 is an alias to def1 */
-    for (const type_def_t *def = def2;;) {
-        def = def->type.u.alias_f.def;
-        if (def == def1) return -1;
-        if (def->type.tag != TYPE_TAG_ALIAS) break;
-    }
-
-    return 0;
-}
-
 int compiler_sort_typedefs(compiler_t *compiler) {
     /* Sorts compiler->defs so that the resulting C typedefs will be in the
     correct order to avoid "error: unknown type name".
@@ -326,33 +333,5 @@ int compiler_sort_typedefs(compiler_t *compiler) {
     (NOTE: currently, the only types whose C typedefs can refer to other C
     typedefs are TYPE_TAG_{ALIAS,FUNS}.) */
 
-    /* new_defs: will replace compiler->defs.elems, once we sort them in it */
-    type_def_t **new_defs = calloc(compiler->defs.size, sizeof(*new_defs));
-    if (!new_defs) return 1;
-
-    /* Copy all non-alias defs into new_defs (before all the alias defs) */
-    size_t new_defs_len = 0;
-    ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
-        if (def->type.tag == TYPE_TAG_ALIAS) continue;
-        new_defs[new_defs_len++] = def;
-    }
-
-    size_t n_aliases = compiler->defs.len - new_defs_len;
-
-    /* Copy all alias defs into new_defs (after all the non-alias defs) */
-    ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
-        if (def->type.tag != TYPE_TAG_ALIAS) continue;
-        new_defs[new_defs_len++] = def;
-    }
-
-    /* Sort the aliases so that they come after their dependencies */
-    qsort(
-        new_defs + new_defs_len - n_aliases, n_aliases,
-        sizeof(*compiler->defs.elems), &_compare_aliases);
-
-    /* Replace compiler's defs with the new, sorted ones */
-    free(compiler->defs.elems);
-    compiler->defs.elems = new_defs;
-
-    return 0;
+    return compiler_sort_defs(compiler, &visit_typedefs);
 }
