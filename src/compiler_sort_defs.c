@@ -318,7 +318,13 @@ static int _compare_aliases(const void *ptr1, const void *ptr2) {
     return 0;
 }
 
-int compiler_sort_aliases(compiler_t *compiler) {
+int compiler_sort_typedefs(compiler_t *compiler) {
+    /* Sorts compiler->defs so that the resulting C typedefs will be in the
+    correct order to avoid "error: unknown type name".
+    That is, sort compiler->defs so that defs come after defs whose C typedefs
+    they refer to.
+    (NOTE: currently, the only types whose C typedefs can refer to other C
+    typedefs are TYPE_TAG_{ALIAS,FUNS}.) */
 
     /* new_defs: will replace compiler->defs.elems, once we sort them in it */
     type_def_t **new_defs = calloc(compiler->defs.size, sizeof(*new_defs));

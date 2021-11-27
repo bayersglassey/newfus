@@ -109,13 +109,14 @@ int compiler_compile(compiler_t *compiler, const char *buffer,
     if (!compiler_validate(compiler)) return 2;
 
     if (compiler->defs.len) {
-        /* Sort compiler->defs such that aliases come after their subdefs */
-        err = compiler_sort_aliases(compiler);
-        if (err) return err;
-
         /* Sort compiler->defs such that arrays/structs/unions come after any
         defs they have an inplace reference to. */
         err = compiler_sort_inplace_refs(compiler);
+        if (err) return err;
+
+        /* Sort compiler->defs such that the compiled C typedefs come after
+        any other C typedefs they refer to */
+        err = compiler_sort_typedefs(compiler);
         if (err) return err;
     }
 
