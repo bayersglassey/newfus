@@ -5,7 +5,7 @@
 
 
 
-void _write_type_name(compiler_t *compiler, type_t *type, FILE *file) {
+void _write_c_type(compiler_t *compiler, type_t *type, FILE *file) {
     switch (type->tag) {
         case TYPE_TAG_VOID:
             /* C doesn't like fields being declared with void, so we use
@@ -16,7 +16,7 @@ void _write_type_name(compiler_t *compiler, type_t *type, FILE *file) {
             fprintf(file, "%s_t", compiler->any_type_name);
             break;
         case TYPE_TAG_TYPE:
-            fprintf(file, "%s_t", compiler->type_type_name);
+            fprintf(file, "const %s_t *", compiler->type_type_name);
             break;
         case TYPE_TAG_ERR:
             fprintf(file, "int /* err */");
@@ -116,14 +116,14 @@ void compiler_write_typedefs(compiler_t *compiler, FILE *file) {
                     def->name);
                 break;
             case TYPE_TAG_FUNC:
-                _write_type_name(compiler, type->u.func_f.ret, file);
+                _write_c_type(compiler, type->u.func_f.ret, file);
                 if (type_tag_is_pointer(type_unalias(type->u.func_f.ret)->tag)) {
                     fputc('*', file);
                 }
                 fprintf(file, " (*%s_t)();\n", def->name);
                 break;
             default:
-                _write_type_name(compiler, type, file);
+                _write_c_type(compiler, type, file);
                 fprintf(file, " %s_t;\n", def->name);
                 break;
         }
@@ -167,7 +167,7 @@ void compiler_write_enums(compiler_t *compiler, FILE *file) {
 }
 
 void _write_type_ref(compiler_t *compiler, type_ref_t *ref, FILE *file) {
-    _write_type_name(compiler, &ref->type, file);
+    _write_c_type(compiler, &ref->type, file);
     if (!type_ref_is_inplace(ref)) {
         fputc('*', file);
     }
@@ -294,34 +294,43 @@ void compiler_write_prototypes(compiler_t *compiler, FILE *file) {
     }
 }
 
-static void _write_cleanup(type_def_t *def, FILE *file) {
+static const char *_type_cleanup_name(type_t *type) {
+    /* Returns the string which, with "_cleanup" appended to it, is the
+    name of this type's cleanup function */
+
+    switch (type->tag) {
+        case TYPE_TAG_ANY:
+            return "any";
+        case TYPE_TAG_ARRAY:
+            return type->u.array_f.def->name;
+        case TYPE_TAG_STRUCT: case TYPE_TAG_UNION:
+            return type->u.struct_f.def->name;
+        case TYPE_TAG_ALIAS:
+            /* Not a type for which type_tag_has_cleanup is true, but caller
+            must guarantee us that type_has_cleanup is true... */
+            return type->u.alias_f.def->name;
+        default:
+            /* This is not a type for which type_tag_has_cleanup is true,
+            so nobody should be calling us... */
+            return "XXX_UNDEFINED_XXX";
+    }
+}
+
+static void _write_cleanup_function(type_def_t *def, FILE *file) {
     type_t *type = &def->type;
 
-    /* Undefined defs are expected to be defined "elsewhere", i.e. in C */
-    if (type->tag == TYPE_TAG_UNDEFINED) return;
-
-    /* Aliases don't have their own cleanup functions, instead they use
-    macros, see compiler_write_prototypes */
-    if (type->tag == TYPE_TAG_ALIAS) return;
-
     /* If this type has no cleanup function, then we have nothing to do */
-    if (!type_has_cleanup(type)) return;
+    if (!type_tag_has_cleanup(type->tag)) return;
 
     fprintf(file, "void %s_cleanup(%s_t *it) {\n",
         def->name, def->name);
     switch (type->tag) {
         case TYPE_TAG_ARRAY: {
             type_ref_t *ref = type->u.array_f.subtype_ref;
-            type_def_t *subdef = type_get_def(&ref->type);
-            /* NOTE: we don't bother unaliasing ref->type and checking whether
-            it's a pointer type etc, because that will all be taken care of by
-            _write_cleanup for that type.
-            That is, if ref->type doesn't have a cleanup function, it'll have
-            a #define for it as (void), which is safe to output here. */
-            if (subdef && !ref->is_weakref) {
+            if (!ref->is_weakref && type_has_cleanup(&ref->type)) {
                 fprintf(file, "    for (int i = 0; i < it->len; i++) {\n");
                 fprintf(file, "        %s_cleanup(%sit->elems[i]);\n",
-                    subdef->name,
+                    _type_cleanup_name(&ref->type),
                     type_ref_is_inplace(ref)? "&": "");
                 fprintf(file, "    }\n");
             }
@@ -335,12 +344,9 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
             }
             ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                 type_ref_t *ref = &field->ref;
-                type_def_t *subdef = type_get_def(&ref->type);
-                /* NOTE: we don't bother unaliasing ref->type and checking whether
-                it's a pointer type etc, see similar comment for TYPE_TAG_ARRAY */
-                if (subdef && !ref->is_weakref) {
+                if (!ref->is_weakref && type_has_cleanup(&ref->type)) {
                     fprintf(file, "    %s_cleanup(%sit->%s);\n",
-                        subdef->name,
+                        _type_cleanup_name(&ref->type),
                         type_ref_is_inplace(ref)? "&": "",
                         field->name);
                 }
@@ -355,13 +361,10 @@ static void _write_cleanup(type_def_t *def, FILE *file) {
             fprintf(file, "    switch (it->tag) {\n");
             ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
                 type_ref_t *ref = &field->ref;
-                type_def_t *subdef = type_get_def(&ref->type);
-                /* NOTE: we don't bother unaliasing ref->type and checking whether
-                it's a pointer type etc, see similar comment for TYPE_TAG_ARRAY */
-                if (subdef && !ref->is_weakref) {
+                if (!ref->is_weakref && type_has_cleanup(&ref->type)) {
                     fprintf(file, "        case %s:\n", field->tag_name);
                     fprintf(file, "            %s_cleanup(%sit->u.%s);\n",
-                        subdef->name,
+                        _type_cleanup_name(&ref->type),
                         type_ref_is_inplace(ref)? "&": "",
                         field->name);
                     fprintf(file, "            break;\n");
@@ -440,6 +443,6 @@ void compiler_write_functions(compiler_t *compiler, FILE *file) {
         compiler->any_type_name);
 
     ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
-        _write_cleanup(def, file);
+        _write_cleanup_function(def, file);
     }
 }
