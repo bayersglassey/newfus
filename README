@@ -55,43 +55,43 @@ For now, here is a simple example:
 
     package: graphs
 
-    # A tree is either a branch, or a leaf containing arbitrary data.
-    union tree:
+    # A binary tree is either a branch, or a leaf containing arbitrary data.
+    union bintree:
         branch: struct:
-            left: @tree
-            right: @tree
+            left: @bintree
+            right: @bintree
         leaf: any
 
 This basically compiles to:
 
-    typedef struct graphs_tree graphs_tree_t;
-    typedef struct graphs_tree_branch graphs_tree_branch_t;
+    typedef struct graphs_bintree graphs_bintree_t;
+    typedef struct graphs_bintree_branch graphs_bintree_branch_t;
 
-    enum graphs_tree_tag {
-        GRAPHS_TREE_TAG_BRANCH,
-        GRAPHS_TREE_TAG_LEAF,
-        GRAPHS_TREE_TAGS
+    enum graphs_bintree_tag {
+        GRAPHS_BINTREE_TAG_BRANCH,
+        GRAPHS_BINTREE_TAG_LEAF,
+        GRAPHS_BINTREE_TAGS
     };
 
-    struct graphs_tree {
-        int tag; /* enum graphs_tree_tag */
+    struct graphs_bintree {
+        int tag; /* enum graphs_bintree_tag */
         union {
-            graphs_tree_branch_t* branch;
+            graphs_bintree_branch_t* branch;
             any_t leaf;
         } u;
     };
 
-    struct graphs_tree_branch {
-        graphs_tree_t* left;
-        graphs_tree_t* right;
+    struct graphs_bintree_branch {
+        graphs_bintree_t* left;
+        graphs_bintree_t* right;
     };
 
-    void graphs_tree_cleanup(graphs_tree_t *it) {
+    void graphs_bintree_cleanup(graphs_bintree_t *it) {
         switch (it->tag) {
-            case GRAPHS_TREE_TAG_BRANCH:
-                graphs_tree_branch_cleanup(it->u.branch);
+            case GRAPHS_BINTREE_TAG_BRANCH:
+                graphs_bintree_branch_cleanup(it->u.branch);
                 break;
-            case GRAPHS_TREE_TAG_LEAF:
+            case GRAPHS_BINTREE_TAG_LEAF:
                 any_cleanup(&it->u.leaf);
                 break;
             default: break;
@@ -99,9 +99,9 @@ This basically compiles to:
         memset(it, 0, sizeof(*it));
     }
 
-    void graphs_tree_branch_cleanup(graphs_tree_branch_t *it) {
-        graphs_tree_cleanup(it->left);
-        graphs_tree_cleanup(it->right);
+    void graphs_bintree_branch_cleanup(graphs_bintree_branch_t *it) {
+        graphs_bintree_cleanup(it->left);
+        graphs_bintree_cleanup(it->right);
         memset(it, 0, sizeof(*it));
     }
 
@@ -128,8 +128,8 @@ Here is most of it:
     enum types {
         TYPE_ANY,
         TYPE_TYPE,
-        TYPE_GRAPHS_TREE,
-        TYPE_GRAPHS_TREE_BRANCH,
+        TYPE_GRAPHS_BINTREE,
+        TYPE_GRAPHS_BINTREE_BRANCH,
         TYPES
     };
 
@@ -143,12 +143,12 @@ Here is most of it:
             .cleanup_voidstar = NULL,
         }
         ,{
-            .name = "graphs_tree",
-            .cleanup_voidstar = &graphs_tree_cleanup_voidstar,
+            .name = "graphs_bintree",
+            .cleanup_voidstar = &graphs_bintree_cleanup_voidstar,
         }
         ,{
-            .name = "graphs_tree_branch",
-            .cleanup_voidstar = &graphs_tree_branch_cleanup_voidstar,
+            .name = "graphs_bintree_branch",
+            .cleanup_voidstar = &graphs_bintree_branch_cleanup_voidstar,
         }
     };
 
@@ -160,13 +160,76 @@ Here is most of it:
     /* Trampoline functions for use with type_t's cleanup_voidstar function
     pointers above: */
     void any_cleanup_voidstar(void *it) { any_cleanup((any_t *) it); }
-    void graphs_tree_cleanup_voidstar(void *it) { graphs_tree_cleanup((graphs_tree_t *) it); }
-    void graphs_tree_branch_cleanup_voidstar(void *it) { graphs_tree_branch_cleanup((graphs_tree_branch_t *) it); }
+    void graphs_bintree_cleanup_voidstar(void *it) { graphs_bintree_cleanup((graphs_bintree_t *) it); }
+    void graphs_bintree_branch_cleanup_voidstar(void *it) { graphs_bintree_branch_cleanup((graphs_bintree_branch_t *) it); }
 
-...so we can write generic data structures, like our "tree" type above,
+...so we can write generic data structures, like our "bintree" type above,
 and still get code generated for free.
 
-In this case, the tree owns its data; it's also possible to specify weakrefs
+In this case, the bintree owns its data; it's also possible to specify weakrefs
 with the "weakref" keyword.
 (Refcounting and other fancy business is *not* implemented at this time, possibly
 not ever.)
+
+
+Now what if, instead of a binary tree, we want a tree where each node
+has an arbitrary number of children?
+
+    package: graphs
+
+    # A tree has an array of children, and some arbitrary data.
+    struct tree:
+        children: array: @tree
+        data: any
+
+This compiles to:
+
+    typedef struct arrayof_graphs_tree arrayof_graphs_tree_t;
+    typedef struct graphs_tree graphs_tree_t;
+
+    struct arrayof_graphs_tree {
+        size_t size;
+        size_t len;
+        graphs_tree_t* *elems;
+    };
+
+    struct graphs_tree {
+        arrayof_graphs_tree_t children;
+        any_t data;
+    };
+
+    void arrayof_graphs_tree_cleanup(arrayof_graphs_tree_t *it) {
+        for (int i = 0; i < it->len; i++) {
+            graphs_tree_cleanup(it->elems[i]);
+        }
+        free(it->elems);
+        memset(it, 0, sizeof(*it));
+    }
+
+    void graphs_tree_cleanup(graphs_tree_t *it) {
+        arrayof_graphs_tree_cleanup(&it->children);
+        any_cleanup(&it->data);
+        memset(it, 0, sizeof(*it));
+    }
+
+...so, we get array types for free.
+Newfus comes with an array.h which provides macros for working with
+these array types, for instance we could do the following:
+
+    void traverse_tree(graphs_tree_t *tree, void (*visit)(graphs_tree_t *)) {
+        /* Traverse given tree depth-first, calling the given "visit"
+        function on each node. */
+
+        visit(tree);
+        ARRAY_FOR_PTR(graphs_tree_t, tree->children, child) {
+            traverse_tree(child, visit);
+        }
+    }
+
+...there are various macros such as ARRAY_PUSH, ARRAY_POP, etc.
+That said, you're free to write your own array-handling code; newfus
+arrays are structs with 3 fields: size, len, and elems.
+The elems are the C array of elements.
+The size is the length of that C array (the array's "capacity").
+The len is the number of elements of the C array which are actually
+initialized.
