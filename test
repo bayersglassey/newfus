@@ -18,7 +18,7 @@ done
 if test "$#" -eq 0
 then
     # Default: names of all .fus files in fus/
-    set -- empty min test type file geom functions
+    set -- empty min test file geom functions
 fi
 
 
