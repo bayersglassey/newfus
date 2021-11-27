@@ -116,7 +116,11 @@ void compiler_write_typedefs(compiler_t *compiler, FILE *file) {
                     def->name);
                 break;
             case TYPE_TAG_FUNC:
-                fprintf(file, "void (*%s_t)();\n", def->name);
+                _write_type_name(compiler, type->u.func_f.ret, file);
+                if (type_tag_is_pointer(type_unalias(type->u.func_f.ret)->tag)) {
+                    fputc('*', file);
+                }
+                fprintf(file, " (*%s_t)();\n", def->name);
                 break;
             default:
                 _write_type_name(compiler, type, file);
@@ -257,7 +261,7 @@ void compiler_write_prototypes(compiler_t *compiler, FILE *file) {
         if (type->tag == TYPE_TAG_UNDEFINED) continue;
 
         if (type->tag == TYPE_TAG_UNION) {
-            fprintf(file, "const char *%s_tag_string(int tag /* enum %s_tag */) {\n",
+            fprintf(file, "static const char *%s_tag_string(int tag /* enum %s_tag */) {\n",
                 def->name, def->name);
             fprintf(file, "    switch (tag) {\n");
             ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
