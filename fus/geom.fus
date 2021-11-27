@@ -1,0 +1,166 @@
+
+# For now, no "geom" package, so that we match the type declarations in geom2018
+package: _
+
+
+typedef vec: extern: _vec_t # typedef int _vec_t[MAX_VEC_DIMS];
+typedef boundbox: extern: _boundbox_t # typedef int _boundbox_t[MAX_VEC_DIMS*2];
+typedef flip: bool
+typedef rot: int
+
+struct trf:
+    # a transformation -- applied in this order: flip, rot, add
+    flip: @flip
+    rot: @rot
+    add: inplace @vec
+
+struct vecspace:
+    dims: int
+    rot_max: int
+
+    vec_rot: func:
+        ret: void
+        args: v(@vec) r(@rot)
+    vec_flip: func:
+        ret: void
+        args: v(@vec) r(@rot)
+    vec_render: func:
+        ret: void
+        args: v(@vec) x(out int) y(out int)
+
+
+struct palette:
+    name: string
+    entries: array: struct palette_entry:
+        frame_i: int
+        n_frames: int
+        frame_offset: int
+        keyframes: array: struct palette_entry_keyframe:
+            color: inplace extern: SDL_Color
+            n_frames: int
+
+
+struct prismel:
+    name: string
+    images: array: struct prismel_image:
+        lines: array: struct prismel_image_line:
+            x: int
+            y: int
+            w: int
+
+
+struct prismelrenderer:
+    cache_bitmaps: bool
+
+    fonts: array: @font
+    geomfonts: array: @geomfont
+    prismels: array: @prismel
+    mappers: array: @prismelmapper
+    palmappers: array: @palettemapper
+
+    filename_store: inplace extern: stringstore_t
+    name_store: inplace extern: stringstore_t
+
+    space: weakref @vecspace
+
+
+
+struct font:
+    name: string
+    # TODO
+
+struct geomfont:
+    name: string
+    # TODO
+
+struct prismelmapper:
+    name: string
+    space: weakref @vecspace
+    unit: inplace @vec
+    solid: bool
+
+    entries: array: struct prismelmapper_entry:
+        prismel: weakref @prismel
+        rendergraph: weakref @rendergraph
+
+    applications: struct prismelmapper_application:
+        mapped_rgraph: weakref @rendergraph
+        resulting_rgraph: weakref @rendergraph
+
+    mapplications: struct prismelmapper_mapplication:
+        mapped_mapper: weakref @prismelmapper
+        resulting_mapper: weakref @prismelmapper
+
+
+struct palettemapper:
+    name: string
+    table: array: byte # Uint8 table[256];
+
+    pmapplications: array: struct palettemapper_pmapplication:
+        mapped_mapper: weakref @palettemapper
+        resulting_mapper: weakref @palettemapper
+
+    applications: array: struct palettemapper_application:
+        mapped_rgraph: weakref @rendergraph
+        resulting_rgraph: weakref @rendergraph
+
+
+struct rendergraph:
+    name: string
+
+    children: array: struct rendergraph_child:
+        trf: inplace @trf
+        frame_start: int
+        frame_len: int
+
+        _: union:
+            prismel: struct:
+                color: byte
+                prismel: weakref @prismel
+            rgraph: struct:
+                frame_i: int
+                frame_i_additive: bool
+                frame_i_reversed: bool
+                palmapper_n_applications: int
+                rendergraph: weakref @rendergraph
+                palmapper: weakref @palettemapper
+            label: struct:
+                name: string
+
+    n_frames: int
+    frames: array: struct rendergraph_frame:
+        # Represents information about individual frames of a rendergraph
+
+        # Labels visible on this frame
+        labels: array: struct rendergraph_label:
+            # Represents one of rendergraph's descendants (rendergraph_child_t)
+            # which have type RENDERGRAPH_CHILD_TYPE_LABEL
+
+            name: string
+            trf: inplace @trf
+
+    # Whether frame->labels has been populated for all frames
+    labels_calculated: bool
+
+    n_bitmaps: int
+    bitmaps: array: struct rendergraph_bitmap:
+        !extra_cleanup # Calling SDL_FreeSurface(surface)
+        pbox_calculated: bool
+        pbox: inplace extern: position_box_t
+        surface: extern: SDL_Surface
+
+    boundbox: inplace @boundbox
+
+    prend: weakref @prismelrenderer
+    space: weakref @vecspace
+    animation_type: string
+    palmapper: weakref @palettemapper
+
+    # If not NULL, this rendergraph is a copy of another one.
+    # In particular, it does *NOT* own its children or frames, so
+    # should *NOT* modify or free them.
+    # However, it *DOES* own its bitmaps.
+    # The reason for doing this is basically for one rgraph to be
+    # the same as another, but with a (different) palmapper applied
+    # to it.
+    copy_of: weakref @rendergraph
