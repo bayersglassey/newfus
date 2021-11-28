@@ -183,6 +183,15 @@ static void visit_typedefs(compiler_t *compiler,
                     visit_sorted_def(sorted_def);
                 }
             }
+            ARRAY_FOR(type_arg_t, type->u.func_f.args, arg) {
+                type_t *subtype = &arg->type;
+                type_def_t *subdef = type_get_def(subtype);
+                if (subdef) {
+                    sorted_def_t *sorted_def = &sorted_defs[
+                        _get_def_i(compiler, subdef)];
+                    visit_sorted_def(sorted_def);
+                }
+            }
             break;
         }
         default: break;

@@ -24,6 +24,8 @@ static int compiler_parse_type_ref(compiler_t *compiler,
 static int compiler_parse_type_field(compiler_t *compiler,
     compiler_frame_t *frame, arrayof_inplace_type_field_t *fields,
     bool is_union);
+static int compiler_parse_type_arg(compiler_t *compiler,
+    compiler_frame_t *frame, arrayof_inplace_type_arg_t *args);
 
 
 
@@ -316,6 +318,51 @@ static int compiler_parse_type_field(compiler_t *compiler,
     return 0;
 }
 
+static int compiler_parse_type_arg(compiler_t *compiler,
+    compiler_frame_t *frame, arrayof_inplace_type_arg_t *args
+) {
+    int err;
+    lexer_t *lexer = compiler->lexer;
+
+    const char *arg_name;
+    GET_CONST_NAME(arg_name, compiler->store)
+
+    if (compiler->debug) {
+        compiler_debug_info(compiler);
+        fprintf(stderr, "%s: %s / %s\n", __func__, arg_name, frame->type_name);
+    }
+
+    ARRAY_FOR(type_arg_t, *args, arg) {
+        if (_streq(arg->name, arg_name)) {
+            fprintf(stderr, "Can't redefine arg: %s\n", arg_name);
+            return 2;
+        }
+    }
+
+    const char *arg_type_name = _const_strjoin3(compiler->store, frame->type_name,
+        "_", arg_name);
+    if (!arg_type_name) return 1;
+
+    ARRAY_PUSH(type_arg_t, *args, arg)
+    arg->name = arg_name;
+
+    GET_OPEN
+    if (GOT("out")) {
+        NEXT
+        arg->out = 1;
+    }
+    compiler_frame_t subframe = *frame;
+    /* Reset array_depth -- we are now a fresh "top-level" type, not some
+    kind of array */
+    subframe.array_depth = 0;
+    subframe.type_name = arg_type_name;
+    err = compiler_parse_type(compiler, &subframe, &arg->type);
+    if (err) return err;
+    GET_CLOSE
+
+    return 0;
+}
+
 static int compiler_parse_func(compiler_t *compiler,
     compiler_frame_t *frame, type_def_t *def
 ) {
@@ -356,16 +403,16 @@ static int compiler_parse_func(compiler_t *compiler,
         } else if (GOT("args")) {
             NEXT
 
-            /*
             compiler_frame_t subframe = {0};
             if (frame) subframe = *frame;
             subframe.type_name = def->name;
-            */
 
             GET_OPEN
-            PARSE_SILENT
-            //while (!DONE && !GOT_CLOSE) {
-            //}
+            while (!DONE && !GOT_CLOSE) {
+                err = compiler_parse_type_arg(compiler, &subframe,
+                    &def->type.u.func_f.args);
+                if (err) return err;
+            }
             GET_CLOSE
         }
     }
@@ -628,7 +675,7 @@ int compiler_parse_defs(compiler_t *compiler) {
             err = compiler_parse_type(compiler, &frame, &def->type);
             if (err) return err;
             GET_CLOSE
-        } else if (GOT("struct") || GOT("union") || GOT("func")) {
+        } else if (GOT("struct") || GOT("union") || GOT("func") || GOT("method")) {
             type_def_t *def;
             err = compiler_parse_struct_or_union_or_func_def(compiler, NULL,
                 &def);
@@ -686,7 +733,8 @@ int compiler_parse_defs(compiler_t *compiler) {
             }
             GET_CLOSE
         } else {
-            return UNEXPECTED("one of: typedef package from");
+            return UNEXPECTED(
+                "one of: typedef package from struct union func method");
         }
     }
 

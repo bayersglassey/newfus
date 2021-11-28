@@ -1,29 +1,63 @@
 
-package: test
+package: functions
 
 
+# functions_dup
+# functions_dup_ret
+method dup:
+    ret: struct:
+        x: any
+        y: any
+    args:
+        x: any
+
+
+# functions_swap
+# functions_swap_pair
+method swap:
+    ret: @swap_pair
+    args:
+        pair: struct:
+            x: any
+            y: any
+
+
+# functions_visit_pair
+# functions_visit_pair_pair
+# functions_visit_pair_action
+func visit_pair:
+    args:
+        pair: struct:
+            x: any
+            y: any
+        action: func:
+            args:
+                pair: @visit_pair_pair
+
+
+# functions_grid
 struct grid:
     w: int
     h: int
 
-    # test_grid_cells_elem
-    # arrayof_inplace_test_grid_cells_elem
-    # arrayof_arrayof_inplace_test_grid_cells_elem
+    # functions_grid_cells_elem
+    # arrayof_inplace_functions_grid_cells_elem
+    # arrayof_arrayof_inplace_functions_grid_cells_elem
     cells: array: array: inplace struct:
         # any
         data: any
 
-    # test_grid_get_cell
-    # test_grid_cells_elem_t *test_grid_get_cell(int x, int y);
+    # functions_grid_get_cell
+    # functions_grid_cells_elem_t *functions_grid_get_cell(int x, int y);
     get_cell: method:
         ret: @grid_cells_elem
         args:
             x: int
             y: int
 
-    # test_grid_get_cell_out
+    # functions_grid_get_cell_out
     # If getting a cell was an operation which could potentially result in error:
-    # int test_grid_get_cell_out(int x, int y, test_grid_cells_elem_t **out_cell);
+    # int functions_grid_get_cell_out(int x, int y, functions_grid_cells_elem_t **out_cell);
     get_cell_out: method:
 
         # This is the default ret value. It's the same as int, except if we
@@ -36,8 +70,8 @@ struct grid:
             y: int
             cell: out @grid_cells_elem
 
-    # test_action
-    # typedef int /* err */ (*test_action)(const char *string, int i);
+    # functions_action
+    # typedef int /* err */ (*functions_action)(const char *string, int i);
     custom_action: func action:
         args:
             name: string

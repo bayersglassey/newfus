@@ -19,9 +19,8 @@ static bool _validate_ref_recurse(type_ref_t *ref, type_t *type) {
     }
 
     bool ok = true;
-    bool is_pointer = type_tag_is_pointer(type->tag);
 
-    if (ref->is_inplace && !is_pointer) {
+    if (ref->is_inplace && !type_tag_supports_inplace(type->tag)) {
         fprintf(stderr, "\"inplace\" reference not allowed to: %s\n",
             type_tag_string(type->tag));
         ok = false;
@@ -31,7 +30,7 @@ static bool _validate_ref_recurse(type_ref_t *ref, type_t *type) {
     point of weakref is to disable automatic calling of the type's cleanup
     function, and only types with a def even have a cleanup function (since
     the function's name is <def_name>_cleanup) */
-    if (ref->is_weakref && (!is_pointer || !type_get_def(type))) {
+    if (ref->is_weakref && !type_supports_weakref(&ref->type)) {
         fprintf(stderr, "\"weakref\" reference not allowed to: %s\n",
             type_tag_string(type->tag));
         ok = false;

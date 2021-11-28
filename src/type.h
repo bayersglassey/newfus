@@ -57,7 +57,16 @@ static bool type_tag_is_pointer(int tag) {
     return
         tag == TYPE_TAG_STRUCT ||
         tag == TYPE_TAG_UNION ||
+        tag == TYPE_TAG_FUNC ||
         tag == TYPE_TAG_EXTERN;
+}
+
+/* Whether this kind of type supports "inplace" (non-pointer) references
+(only makes sense for types for which type_tag_is_pointer is true) */
+static bool type_tag_supports_inplace(int tag) {
+    /* Function types can't be instantiated directly, you can only make
+    function pointers out of them. */
+    return type_tag_is_pointer(tag) && tag != TYPE_TAG_FUNC;
 }
 
 /* Whether this kind of type has a cleanup function associated with it */
@@ -186,6 +195,20 @@ struct type_def {
 };
 
 
+static type_def_t *type_get_def(type_t *type) {
+    switch (type->tag) {
+        case TYPE_TAG_ARRAY:
+            return type->u.array_f.def;
+        case TYPE_TAG_STRUCT: case TYPE_TAG_UNION:
+            return type->u.struct_f.def;
+        case TYPE_TAG_ALIAS:
+            return type->u.alias_f.def;
+        case TYPE_TAG_FUNC:
+            return type->u.func_f.def;
+        default: return NULL;
+    }
+}
+
 /* Follow aliases until we get to the "real" underlying type */
 static type_t *type_unalias(type_t *type) {
     while (type->tag == TYPE_TAG_ALIAS) type = &type->u.alias_f.def->type;
@@ -204,25 +227,25 @@ static bool type_has_cleanup(type_t *type) {
     return type_tag_has_cleanup(real_type->tag);
 }
 
-static bool type_ref_is_inplace(type_ref_t *ref) {
-    if (ref->is_inplace) return true;
-
-    type_t *type = type_unalias(&ref->type);
-    return !type_tag_is_pointer(type->tag);
+/* Whether this type supports "weakref" references to it */
+static bool type_supports_weakref(type_t *type) {
+    /* NOTE: weakrefs are only allowed to types with a def, since the whole
+    point of weakref is to disable automatic calling of the type's cleanup
+    function, and only types with a def even have a cleanup function (since
+    the function's name is <def_name>_cleanup) */
+    type_t *real_type = type_unalias(type);
+    return type_tag_is_pointer(real_type->tag) && type_get_def(real_type);
 }
 
-static type_def_t *type_get_def(type_t *type) {
-    switch (type->tag) {
-        case TYPE_TAG_ARRAY:
-            return type->u.array_f.def;
-        case TYPE_TAG_STRUCT: case TYPE_TAG_UNION:
-            return type->u.struct_f.def;
-        case TYPE_TAG_ALIAS:
-            return type->u.alias_f.def;
-        case TYPE_TAG_FUNC:
-            return type->u.func_f.def;
-        default: return NULL;
-    }
+/* Whether references to this type are pointers by default */
+static bool type_is_pointer(type_t *type) {
+    type_t *real_type = type_unalias(type);
+    return type_tag_is_pointer(real_type->tag);
+}
+
+static bool type_ref_is_inplace(type_ref_t *ref) {
+    if (ref->is_inplace) return true;
+    return !type_is_pointer(&ref->type);
 }
 
 

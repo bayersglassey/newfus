@@ -53,6 +53,20 @@ void _write_c_type(compiler_t *compiler, type_t *type, FILE *file) {
     }
 }
 
+void _write_type(compiler_t *compiler, type_t *type, FILE *file) {
+    _write_c_type(compiler, type, file);
+    if (type_is_pointer(type)) {
+        fputc('*', file);
+    }
+}
+
+void _write_type_ref(compiler_t *compiler, type_ref_t *ref, FILE *file) {
+    _write_c_type(compiler, &ref->type, file);
+    if (!type_ref_is_inplace(ref)) {
+        fputc('*', file);
+    }
+}
+
 
 void compiler_write_hfile(compiler_t *compiler, FILE *file) {
     fputc('\n', file);
@@ -116,11 +130,17 @@ void compiler_write_typedefs(compiler_t *compiler, FILE *file) {
                     def->name);
                 break;
             case TYPE_TAG_FUNC:
-                _write_c_type(compiler, type->u.func_f.ret, file);
-                if (type_tag_is_pointer(type_unalias(type->u.func_f.ret)->tag)) {
-                    fputc('*', file);
+                _write_type(compiler, type->u.func_f.ret, file);
+                fprintf(file, " %s_t(", def->name);
+                for (int i = 0; i < type->u.func_f.args.len; i++) {
+                    type_arg_t *arg = &type->u.func_f.args.elems[i];
+                    if (i != 0) fputs(", ", file);
+                    _write_type(compiler, &arg->type, file);
+                    fputc(' ', file);
+                    if (arg->out) fputc('*', file);
+                    fprintf(file, "%s", arg->name);
                 }
-                fprintf(file, " (*%s_t)();\n", def->name);
+                fprintf(file, ");\n");
                 break;
             default:
                 _write_c_type(compiler, type, file);
@@ -163,13 +183,6 @@ void compiler_write_enums(compiler_t *compiler, FILE *file) {
             fprintf(file, "    %s\n", type->u.struct_f.tags_name);
             fprintf(file, "};\n");
         }
-    }
-}
-
-void _write_type_ref(compiler_t *compiler, type_ref_t *ref, FILE *file) {
-    _write_c_type(compiler, &ref->type, file);
-    if (!type_ref_is_inplace(ref)) {
-        fputc('*', file);
     }
 }
 
