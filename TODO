@@ -1,39 +1,4 @@
 
-TYPE_TAG_FUNC: do we need to do any sorting around these?
-Let's try to come up with some circular function type definitions...
-...hey, we already have one in fus/functions.fus:
-
-    _test/functions.c:12:9: error: unknown type name ‘test_grid_cells_elem_t’
-       12 | typedef test_grid_cells_elem_t* (*test_grid_get_cell_t)();
-
-...at the moment we have the following def-sorting functions:
-    * compiler_sort_inplace_refs
-    * compiler_sort_typedefs
-
-...so do we need a third function for sorting function-types?..
-I think we determined before that "aliases" (i.e. C typedefs) need
-to always come after everything else.
-And our TYPE_TAG_FUNCs just compile to C typedefs.
-So I guess for starters, we could get compiler_sort_typedefs to stick
-them at the end...
-But that doesn't quite resolve everything, really the issue is that
-now we need to sort C typedefs using a breadth-first search (as we do
-for C structs/unions in compiler_sort_inplace_refs) instead of just
-plain qsort (as is currently done by compiler_sort_typedefs).
-Ahhhhh shyyeeeet.
-
-OK OK SO
-We've refactored compiler_sort_inplace_refs, so we now have a nice generic
-compiler_sort_defs, and should be able to use that in compiler_sort_typedefs.
-
-
-
-
-WE NEED TO ALLOW "weakref any".
-
-
-
-
 
 Allow structs/unions to be "unpacked" into each other.
 So like:
@@ -88,6 +53,16 @@ be "static" in the sense that they just represent C functions with arbitrary
 arguments, *BUT* if we start adding scripting, then we can add a special
 operator which attempts to call a method passing its object as first argument.
 So for now we don't have to worry about that.
+
+
+
+
+Require type.h for out compiled output, change runtime's type_t to type_info_t,
+and move the runtime stuff into runtime.[ch] (instead of writing it out in
+compiler_write.c).
+
+
+
 
 
 
