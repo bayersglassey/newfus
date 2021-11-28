@@ -1,45 +1,5 @@
 
 
-Allow structs/unions to be "unpacked" into each other.
-So like:
-
-    struct A:
-        name: sym
-        !unpack union:
-            number: int
-            string: sym
-
-...compiles to:
-
-    struct A {
-        const char *name;
-        int tag;
-        union {
-            int number;
-            const char *string;
-        } u;
-    };
-
-...k wait a minute. Doesn't it seem more like we want a single TYPE_TAG_STRUCT
-which compiles to a C struct and is allowed to have a single union (int tag + union u)?
-What would syntax for that look like?
-
-    struct A:
-        name: sym
-        !union:
-            number: int
-            string: sym
-
-...and then, is it a syntax error to use "!union" more than once in same struct?
-I don't think so; I think type->u.struct_f just ends up having struct_fields and
-union_fields, and if union_fields is empty then struct is compiled to C with no
-"int tag / union u" combo.
-(What if someone wants to force an empty union with "!union()"?.. probably we
-don't allow it)
-
-
-
-
 We've added TYPE_TAG_FUNCTION, now we need to add methods.
 Function/method type syntax:
 

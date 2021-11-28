@@ -113,7 +113,7 @@ struct rendergraph:
         frame_start: int
         frame_len: int
 
-        _: union:
+        type: inplace union:
             prismel: struct:
                 color: byte
                 prismel: weakref @prismel
