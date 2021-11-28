@@ -1,0 +1,10 @@
+
+package: any
+
+
+struct container:
+    data: any
+
+struct weak_container:
+    data: weakref any
+
