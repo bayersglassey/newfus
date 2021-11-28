@@ -197,6 +197,11 @@ struct type_def {
     const char *name;
     const char *name_upper; /* name converted to uppercase */
     type_t type;
+
+    int
+        /* sorting, sorted: used when sorting, see compiler_sort_defs */
+        sorting : 1,
+        sorted  : 1;
 };
 
 
