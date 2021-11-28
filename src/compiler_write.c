@@ -191,7 +191,15 @@ void compiler_write_structs(compiler_t *compiler, FILE *file) {
 
     fprintf(file, "struct %s {\n", compiler->any_type_name);
     fprintf(file, "    %s_t *type;\n", compiler->type_type_name);
-    fprintf(file, "    void *value;\n");
+    fprintf(file, "    int weakref: 1;\n");
+    fprintf(file, "    union {\n");
+    fprintf(file, "        char c; /* byte */\n");
+    fprintf(file, "        bool b; /* bool */\n");
+    fprintf(file, "        int i; /* int, err */\n");
+    fprintf(file, "        const char *s; /* string */\n");
+    fprintf(file, "        void (*fp)(); /* func */\n");
+    fprintf(file, "        void *p; /* everything else */\n");
+    fprintf(file, "    } u;\n");
     fprintf(file, "};\n");
     fprintf(file, "struct %s {\n", compiler->type_type_name);
     fprintf(file, "    const char *name;\n");
@@ -449,7 +457,9 @@ void compiler_write_functions(compiler_t *compiler, FILE *file) {
     fprintf(file, "void %s_cleanup(%s_t *it) {\n",
         compiler->any_type_name, compiler->any_type_name);
     fprintf(file, "    if (!it->type || !it->type->cleanup_voidstar) return;\n");
-    fprintf(file, "    it->type->cleanup_voidstar(it->value);\n");
+    fprintf(file, "    /* NOTE: we can safely use it->u.p, because types which have\n");
+    fprintf(file, "    a cleanup function are guaranteed to use pointers. */\n");
+    fprintf(file, "    it->type->cleanup_voidstar(it->u.p);\n");
     fprintf(file, "}\n");
     fprintf(file, "void %s_cleanup_voidstar(void *it) { %s_cleanup((%s_t *) it); }\n",
         compiler->any_type_name, compiler->any_type_name,
