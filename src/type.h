@@ -78,6 +78,11 @@ static bool type_tag_has_cleanup(int tag) {
         tag == TYPE_TAG_UNION;
 }
 
+/* Whether this type supports "weakref" references to it */
+static bool type_tag_supports_weakref(int tag) {
+    return type_tag_has_cleanup(tag);
+}
+
 static const char *type_tag_string(int tag) {
     switch (tag) {
         case TYPE_TAG_VOID: return "void";
@@ -225,16 +230,6 @@ static type_def_t *type_def_unalias(type_def_t *def) {
 static bool type_has_cleanup(type_t *type) {
     type_t *real_type = type_unalias(type);
     return type_tag_has_cleanup(real_type->tag);
-}
-
-/* Whether this type supports "weakref" references to it */
-static bool type_supports_weakref(type_t *type) {
-    /* NOTE: weakrefs are only allowed to types with a def, since the whole
-    point of weakref is to disable automatic calling of the type's cleanup
-    function, and only types with a def even have a cleanup function (since
-    the function's name is <def_name>_cleanup) */
-    type_t *real_type = type_unalias(type);
-    return type_tag_is_pointer(real_type->tag) && type_get_def(real_type);
 }
 
 /* Whether references to this type are pointers by default */

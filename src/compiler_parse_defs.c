@@ -371,7 +371,7 @@ static int compiler_parse_func(compiler_t *compiler,
 
     if (compiler->debug) {
         compiler_debug_info(compiler);
-        fprintf(stderr, "%s: %s / %s\n", __func__, def->name, frame->type_name);
+        fprintf(stderr, "%s: %s / %s\n", __func__, def->name, frame? frame->type_name: "(none)");
     }
 
     type_t *ret = calloc(1, sizeof(*ret));

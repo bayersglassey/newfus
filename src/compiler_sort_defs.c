@@ -21,7 +21,8 @@ typedef struct sorted_def sorted_def_t;
 
 /* What to do when visiting a def during a traversal of a partial ordering
 of defs */
-typedef void visit_sorted_def_t(sorted_def_t *sorted_def);
+typedef void visit_sorted_def_t(sorted_def_t *sorted_def,
+    type_def_t *from_def);
 
 /* A *step* of a breadth-first traversal of a partial ordering of defs; in
 particular, this implements the logic for finding a def's children within
@@ -35,6 +36,8 @@ typedef void visit_sorted_def_children_t(compiler_t *compiler,
 /************** STRUCTS *******************/
 
 struct sorter {
+
+    compiler_t *compiler;
 
     /* Pointer to the end of new_defs, so that we can push defs onto the
     end of it easily, using the expression: *(--new_defs_end) = def
@@ -76,6 +79,7 @@ static visit_sorted_def_t visit_sorted_def_mark_non_root;
 static visit_sorted_def_t visit_sorted_def_attempt_sort;
 
 static visit_sorted_def_children_t visit_inplace_refs;
+static visit_sorted_def_children_t visit_typedefs;
 
 
 
@@ -103,13 +107,31 @@ static void sorted_def_sort(sorted_def_t *sorted_def) {
 
 
 /* visit_sorted_def_t */
-static void visit_sorted_def_mark_non_root(sorted_def_t *sorted_def) {
+static void visit_sorted_def_mark_non_root(sorted_def_t *sorted_def,
+    type_def_t *from_def
+) {
+    bool debug = sorted_def->sorter->compiler->debug;
+    if (debug) {
+        fprintf(stderr, "MARKING NON ROOT: %s (from %s)\n",
+            sorted_def->def->name, from_def->name);
+    }
     sorted_def->non_root = 1;
 }
 
 /* visit_sorted_def_t */
-static void visit_sorted_def_attempt_sort(sorted_def_t *sorted_def) {
+static void visit_sorted_def_attempt_sort(sorted_def_t *sorted_def,
+    type_def_t *from_def
+) {
+    bool debug = sorted_def->sorter->compiler->debug;
+    if (debug) {
+        fprintf(stderr, "ATTEMPTING SORT: %s (from %s)\n",
+            sorted_def->def->name, from_def->name);
+    }
     if (!sorted_def->sorted) {
+        if (debug) {
+            fprintf(stderr, "  ...SORTED!\n");
+        }
+
         /* Push sorted_def's def, and mark sorted_def as having been sorted */
         sorted_def_sort(sorted_def);
     }
@@ -133,7 +155,7 @@ static void visit_inplace_refs(compiler_t *compiler,
                     C typedefs. */
                     sorted_def_t *sorted_def = &sorted_defs[
                         _get_def_i(compiler, type_def_unalias(subdef))];
-                    visit_sorted_def(sorted_def);
+                    visit_sorted_def(sorted_def, def);
                 }
             }
             break;
@@ -149,7 +171,7 @@ static void visit_inplace_refs(compiler_t *compiler,
                         C typedefs. */
                         sorted_def_t *sorted_def = &sorted_defs[
                             _get_def_i(compiler, type_def_unalias(subdef))];
-                        visit_sorted_def(sorted_def);
+                        visit_sorted_def(sorted_def, def);
                     }
                 }
             }
@@ -170,7 +192,7 @@ static void visit_typedefs(compiler_t *compiler,
             type_def_t *subdef = type->u.alias_f.def;
             sorted_def_t *sorted_def = &sorted_defs[
                 _get_def_i(compiler, subdef)];
-            visit_sorted_def(sorted_def);
+            visit_sorted_def(sorted_def, def);
             break;
         }
         case TYPE_TAG_FUNC: {
@@ -180,7 +202,7 @@ static void visit_typedefs(compiler_t *compiler,
                 if (subdef) {
                     sorted_def_t *sorted_def = &sorted_defs[
                         _get_def_i(compiler, subdef)];
-                    visit_sorted_def(sorted_def);
+                    visit_sorted_def(sorted_def, def);
                 }
             }
             ARRAY_FOR(type_arg_t, type->u.func_f.args, arg) {
@@ -189,7 +211,7 @@ static void visit_typedefs(compiler_t *compiler,
                 if (subdef) {
                     sorted_def_t *sorted_def = &sorted_defs[
                         _get_def_i(compiler, subdef)];
-                    visit_sorted_def(sorted_def);
+                    visit_sorted_def(sorted_def, def);
                 }
             }
             break;
@@ -241,21 +263,29 @@ static int compiler_sort_defs(compiler_t *compiler,
 
     sorter_t sorter = {
 
+        .compiler = compiler,
+
         /* Used to push defs onto new_defs, starting at the right and going
         leftwards, see sorted_def_sort */
         .new_defs_end = new_defs + compiler->defs.len,
 
     };
 
-    /* Populate sorted_defs, including figuring out which ones are the
-    root(s) of the partial ordering(s). */
-    for (int i = 0; i < compiler->defs.len; i++) {
+    /* Populate sorted_defs */
+    for (int i = compiler->defs.len - 1; i >= 0; i--) {
         type_def_t *def = compiler->defs.elems[i];
         sorted_def_t *sorted_def = &sorted_defs[i];
 
         /* Populate sorted_def */
         sorted_def->sorter = &sorter;
         sorted_def->def = def;
+    }
+
+    /* Figure out which sorted_defs are the root(s) of the partial
+    ordering(s) */
+    for (int i = compiler->defs.len - 1; i >= 0; i--) {
+        type_def_t *def = compiler->defs.elems[i];
+        sorted_def_t *sorted_def = &sorted_defs[i];
 
         /* Populate other sorted_defs' sorted_def->non_root */
         visit_sorted_def_children(compiler, def, sorted_def, sorted_defs,
@@ -331,6 +361,10 @@ int compiler_sort_inplace_refs(compiler_t *compiler) {
     any defs it has an inplace reference to (e.g. array subdef,
     struct/union field). */
 
+    if (compiler->debug) {
+        fprintf(stderr, "=== %s:\n", __func__);
+    }
+
     return compiler_sort_defs(compiler, &visit_inplace_refs);
 }
 
@@ -341,6 +375,10 @@ int compiler_sort_typedefs(compiler_t *compiler) {
     they refer to.
     (NOTE: currently, the only types whose C typedefs can refer to other C
     typedefs are TYPE_TAG_{ALIAS,FUNS}.) */
+
+    if (compiler->debug) {
+        fprintf(stderr, "=== %s:\n", __func__);
+    }
 
     return compiler_sort_defs(compiler, &visit_typedefs);
 }
