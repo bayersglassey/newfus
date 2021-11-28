@@ -31,6 +31,6 @@ do
     if test -f fus/"$name".h; then
         echo "#include \"../fus/$name.h\"" >>_test/"$name".c
     fi
-    bin/fusc $FUSC_ARGS --hfile --cfile --main fus/"$name".fus >>_test/"$name".c
+    bin/fusc $FUSC_ARGS -a fus/"$name".fus >>_test/"$name".c
     gcc --std=c99 -o _test/"$name" _test/"$name".c
 done

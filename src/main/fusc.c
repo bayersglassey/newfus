@@ -28,6 +28,7 @@ static void print_usage(FILE *file) {
         "  -h  --help        Print this message & exit\n"
         "  -D  --debug       Compiler dumps debug information to stderr during compilation\n"
         "  -d  --dump        Dump debug information to stderr after compilation\n"
+        "  -a  --all         Write all compiled C code to stdout\n"
         "      --hfile       Write compiled .h file to stdout\n"
         "      --cfile       Write compiled .c file to stdout\n"
         "      --main        Write a dummy main function to stdout\n"
@@ -96,6 +97,16 @@ int main(int n_args, char **args) {
             debug = true;
         } else if (!strcmp(arg, "-d") || !strcmp(arg, "--dump")) {
             dump = true;
+        } else if (!strcmp(arg, "-a") || !strcmp(arg, "--all")) {
+            write_hfile = true;
+            write_cfile = true;
+            write_main = true;
+        } else if (!strcmp(arg, "--hfile")) {
+            write_hfile = true;
+        } else if (!strcmp(arg, "--cfile")) {
+            write_cfile = true;
+        } else if (!strcmp(arg, "--main")) {
+            write_main = true;
         } else if (!strcmp(arg, "--typedefs")) {
             write_typedefs = true;
         } else if (!strcmp(arg, "--enums")) {
@@ -110,12 +121,6 @@ int main(int n_args, char **args) {
             write_type_defns = true;
         } else if (!strcmp(arg, "--functions")) {
             write_functions = true;
-        } else if (!strcmp(arg, "--hfile")) {
-            write_hfile = true;
-        } else if (!strcmp(arg, "--cfile")) {
-            write_cfile = true;
-        } else if (!strcmp(arg, "--main")) {
-            write_main = true;
         } else if (!strcmp(arg, "--")) {
             arg_i++;
             break;
