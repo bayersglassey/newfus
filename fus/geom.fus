@@ -115,7 +115,7 @@ struct rendergraph:
 
         type: inplace union:
             prismel: struct:
-                color: byte
+                color: extern: Uint8
                 prismel: weakref @prismel
             rgraph: struct:
                 frame_i: int

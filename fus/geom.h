@@ -3,6 +3,8 @@
 
 #define MAX_VEC_DIMS 4
 
+typedef unsigned char Uint8;
+
 typedef int _vec_t[MAX_VEC_DIMS];
 typedef int _boundbox_t[MAX_VEC_DIMS*2];
 
