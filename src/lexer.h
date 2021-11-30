@@ -15,7 +15,7 @@
         lexer_t lexer;
         lexer_init(&lexer);
 
-        int err = lexer_load(&lexer, "1 2 (3 4) 5");
+        int err = lexer_load(&lexer, "1 2 (3 4) 5", "<filename>");
         if (err) return err;
 
         while (1) {
@@ -88,6 +88,8 @@ int lexer_get_name(lexer_t *lexer, char **name);
 int lexer_get_const_name(lexer_t *lexer, stringstore_t *stringstore,
     const char **name);
 int lexer_get_str(lexer_t *lexer, char **s);
+int lexer_get_const_str(lexer_t *lexer, stringstore_t *stringstore,
+    const char **s);
 int lexer_get_int(lexer_t *lexer, int *i);
 int lexer_get_open(lexer_t *lexer);
 int lexer_get_close(lexer_t *lexer);

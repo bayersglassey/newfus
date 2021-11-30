@@ -2,6 +2,7 @@
 #define _LEXER_MACROS_H_
 
 #define DO(X) {err = (X); if (err) return err;}
+#define LOAD(TEXT, FILENAME) DO(lexer_load(lexer, TEXT, FILENAME))
 #define GOT(S) lexer_got(lexer, S)
 #define GET(S) DO(lexer_get(lexer, S))
 #define NEXT DO(lexer_next(lexer))
@@ -15,6 +16,7 @@
 #define GET_NAME(P) DO(lexer_get_name(lexer, (&P)))
 #define GET_CONST_NAME(P, STORE) DO(lexer_get_const_name(lexer, (STORE), (&P)))
 #define GET_STR(P) DO(lexer_get_str(lexer, (&P)))
+#define GET_CONST_STR(P, STORE) DO(lexer_get_const_str(lexer, (STORE), (&P)))
 #define GET_INT(P) DO(lexer_get_int(lexer, (&P)))
 #define GET_OPEN DO(lexer_get_open(lexer))
 #define GET_CLOSE DO(lexer_get_close(lexer))

@@ -536,6 +536,22 @@ int lexer_get_str(lexer_t *lexer, char **s) {
     return lexer_next(lexer);
 }
 
+int lexer_get_const_str(lexer_t *lexer, stringstore_t *stringstore,
+    const char **s
+) {
+    int err;
+
+    char *_s;
+    err = lexer_get_name(lexer, &_s);
+    if (err) return err;
+
+    const char *cs = stringstore_get_donate(stringstore, _s);
+    if (!cs) return 1;
+
+    *s = cs;
+    return 0;
+}
+
 int lexer_get_int(lexer_t *lexer, int *i) {
     if (!lexer_got_int(lexer)) {
         lexer_err_info(lexer);
