@@ -421,6 +421,10 @@ bool lexer_got_name(lexer_t *lexer) {
     return lexer->token_type == LEXER_TOKEN_NAME;
 }
 
+bool lexer_got_op(lexer_t *lexer) {
+    return lexer->token_type == LEXER_TOKEN_OP;
+}
+
 bool lexer_got_str(lexer_t *lexer) {
     return
         lexer->token_type == LEXER_TOKEN_STR ||
@@ -457,6 +461,28 @@ int lexer_get(lexer_t *lexer, const char *text) {
         return 2;
     }
     return lexer_next(lexer);
+}
+
+int lexer_get_token(lexer_t *lexer, char **token) {
+    *token = _strndup(lexer->token, lexer->token_len);
+    if (*token == NULL) return 1;
+    return lexer_next(lexer);
+}
+
+int lexer_get_const_token(lexer_t *lexer, stringstore_t *stringstore,
+    const char **token
+) {
+    int err;
+
+    char *_token;
+    err = lexer_get_token(lexer, &_token);
+    if (err) return err;
+
+    const char *const_token = stringstore_get_donate(stringstore, _token);
+    if (!const_token) return 1;
+
+    *token = const_token;
+    return 0;
 }
 
 int lexer_get_name(lexer_t *lexer, char **name) {

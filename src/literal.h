@@ -17,10 +17,10 @@ typedef ARRAYOF(type_literal_t) arrayof_inplace_type_literal_t;
 
 enum type_literal_tag {
     TYPE_LITERAL_TAG_INT,
-    TYPE_LITERAL_TAG_STRING,
-    TYPE_LITERAL_TAG_ARRAY,
-    TYPE_LITERAL_TAG_LOCAL_NAME,
-    TYPE_LITERAL_TAG_GLOBAL_NAME,
+    TYPE_LITERAL_TAG_NAME,
+    TYPE_LITERAL_TAG_OP,
+    TYPE_LITERAL_TAG_STR,
+    TYPE_LITERAL_TAG_ARR,
     TYPE_LITERAL_TAG_UNDEFINED,
     TYPE_LITERAL_TAGS
 };
@@ -31,7 +31,6 @@ struct type_literal {
         int int_f;
         const char *string_f;
         arrayof_inplace_type_literal_t array_f;
-        const char *name_f;
     } u;
 };
 

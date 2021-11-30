@@ -78,12 +78,16 @@ int lexer_next(lexer_t *lexer);
 bool lexer_done(lexer_t *lexer);
 bool lexer_got(lexer_t *lexer, const char *text);
 bool lexer_got_name(lexer_t *lexer);
+bool lexer_got_op(lexer_t *lexer);
 bool lexer_got_str(lexer_t *lexer);
 bool lexer_got_int(lexer_t *lexer);
 bool lexer_got_open(lexer_t *lexer);
 bool lexer_got_close(lexer_t *lexer);
 void lexer_show(lexer_t *lexer, FILE *f);
 int lexer_get(lexer_t *lexer, const char *text);
+int lexer_get_token(lexer_t *lexer, char **token);
+int lexer_get_const_token(lexer_t *lexer, stringstore_t *stringstore,
+    const char **token);
 int lexer_get_name(lexer_t *lexer, char **name);
 int lexer_get_const_name(lexer_t *lexer, stringstore_t *stringstore,
     const char **name);
