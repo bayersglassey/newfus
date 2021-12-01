@@ -44,6 +44,8 @@ static int parse_buffer(const char *buffer, const char *filename,
         int depth = output_inline? -1: 0;
         tokentree_write(&tokentree, stdout, depth);
         fputc('\n', stdout);
+
+        tokentree_cleanup(&tokentree);
     }
 
     lexer_cleanup(lexer);

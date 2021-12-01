@@ -16,6 +16,7 @@ void tokentree_cleanup(tokentree_t *tokentree) {
             ARRAY_FOR(tokentree_t, tokentree->u.array_f, elem) {
                 tokentree_cleanup(elem);
             }
+            free(tokentree->u.array_f.elems);
         }
         default: break;
     }
