@@ -463,25 +463,46 @@ int lexer_get(lexer_t *lexer, const char *text) {
     return lexer_next(lexer);
 }
 
-int lexer_get_token(lexer_t *lexer, char **token) {
-    *token = _strndup(lexer->token, lexer->token_len);
-    if (*token == NULL) return 1;
+static int _lexer_get_string(lexer_t *lexer, char **string) {
+    /* Caller guarantees lexer->token_type is LEXER_TOKEN_{NAME,OP} */
+    *string = _strndup(lexer->token, lexer->token_len);
+    if (*string == NULL) return 1;
     return lexer_next(lexer);
 }
 
-int lexer_get_const_token(lexer_t *lexer, stringstore_t *stringstore,
-    const char **token
+int lexer_get_string(lexer_t *lexer, char **string) {
+    if (
+        lexer->token_type == LEXER_TOKEN_STR ||
+        lexer->token_type == LEXER_TOKEN_BLOCKSTR
+    ) {
+        return lexer_get_str(lexer, string);
+    } else if (
+        lexer->token_type == LEXER_TOKEN_NAME ||
+        lexer->token_type == LEXER_TOKEN_OP
+    ) {
+        return _lexer_get_string(lexer, string);
+    } else {
+        lexer_err_info(lexer);
+        fprintf(stderr, "Expected name or op or str, but got: ");
+        lexer_show(lexer, stderr);
+        fprintf(stderr, "\n");
+        return 2;
+    }
+}
+
+int lexer_get_const_string(lexer_t *lexer, stringstore_t *stringstore,
+    const char **string
 ) {
     int err;
 
-    char *_token;
-    err = lexer_get_token(lexer, &_token);
+    char *_string;
+    err = lexer_get_string(lexer, &_string);
     if (err) return err;
 
-    const char *const_token = stringstore_get_donate(stringstore, _token);
-    if (!const_token) return 1;
+    const char *const_string = stringstore_get_donate(stringstore, _string);
+    if (!const_string) return 1;
 
-    *token = const_token;
+    *string = const_string;
     return 0;
 }
 
@@ -494,9 +515,7 @@ int lexer_get_name(lexer_t *lexer, char **name) {
         fprintf(stderr, "\n");
         return 2;
     }
-    *name = _strndup(lexer->token, lexer->token_len);
-    if (*name == NULL) return 1;
-    return lexer_next(lexer);
+    return _lexer_get_string(lexer, name);
 }
 
 int lexer_get_const_name(lexer_t *lexer, stringstore_t *stringstore,
@@ -512,6 +531,34 @@ int lexer_get_const_name(lexer_t *lexer, stringstore_t *stringstore,
     if (!const_name) return 1;
 
     *name = const_name;
+    return 0;
+}
+
+int lexer_get_op(lexer_t *lexer, char **op) {
+    if (!lexer_got_op(lexer)) {
+        lexer_err_info(lexer);
+        fprintf(stderr,
+            "Expected op, but got: ");
+        lexer_show(lexer, stderr);
+        fprintf(stderr, "\n");
+        return 2;
+    }
+    return _lexer_get_string(lexer, op);
+}
+
+int lexer_get_const_op(lexer_t *lexer, stringstore_t *stringstore,
+    const char **op
+) {
+    int err;
+
+    char *_op;
+    err = lexer_get_op(lexer, &_op);
+    if (err) return err;
+
+    const char *const_op = stringstore_get_donate(stringstore, _op);
+    if (!const_op) return 1;
+
+    *op = const_op;
     return 0;
 }
 
@@ -568,7 +615,7 @@ int lexer_get_const_str(lexer_t *lexer, stringstore_t *stringstore,
     int err;
 
     char *_s;
-    err = lexer_get_name(lexer, &_s);
+    err = lexer_get_str(lexer, &_s);
     if (err) return err;
 
     const char *cs = stringstore_get_donate(stringstore, _s);

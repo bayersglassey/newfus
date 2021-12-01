@@ -42,11 +42,15 @@ int tokentree_parse(tokentree_t *tokentree, lexer_t *lexer,
         GET_INT(i)
         tokentree->tag = TOKENTREE_TAG_INT;
         tokentree->u.int_f = i;
-    } else if (GOT_NAME || GOT_OP) {
-        bool is_name = GOT_NAME;
+    } else if (GOT_NAME) {
         const char *string;
-        GET_CONST_TOKEN(string, store)
-        tokentree->tag = is_name? TOKENTREE_TAG_NAME: TOKENTREE_TAG_OP;
+        GET_CONST_NAME(string, store)
+        tokentree->tag = TOKENTREE_TAG_NAME;
+        tokentree->u.string_f = string;
+    } else if (GOT_OP) {
+        const char *string;
+        GET_CONST_OP(string, store)
+        tokentree->tag = TOKENTREE_TAG_OP;
         tokentree->u.string_f = string;
     } else if (GOT_STR) {
         const char *string;
