@@ -3,16 +3,16 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include "literal.h"
+#include "tokentree.h"
 #include "lexer_macros.h"
 
 
 
-void type_literal_cleanup(type_literal_t *literal) {
-    switch(literal->tag) {
-        case TYPE_LITERAL_TAG_ARR: {
-            ARRAY_FOR(type_literal_t, literal->u.array_f, elem) {
-                type_literal_cleanup(elem);
+void tokentree_cleanup(tokentree_t *tokentree) {
+    switch(tokentree->tag) {
+        case TOKENTREE_TAG_ARR: {
+            ARRAY_FOR(tokentree_t, tokentree->u.array_f, elem) {
+                tokentree_cleanup(elem);
             }
         }
         default: break;
@@ -20,39 +20,39 @@ void type_literal_cleanup(type_literal_t *literal) {
 }
 
 
-int type_literal_parse(type_literal_t *literal, lexer_t *lexer,
+int tokentree_parse(tokentree_t *tokentree, lexer_t *lexer,
     stringstore_t *store
 ) {
     int err;
 
-    memset(literal, 0, sizeof(*literal));
-    literal->tag = TYPE_LITERAL_TAG_UNDEFINED;
+    memset(tokentree, 0, sizeof(*tokentree));
+    tokentree->tag = TOKENTREE_TAG_UNDEFINED;
 
     if (GOT_OPEN) {
-        literal->tag = TYPE_LITERAL_TAG_ARR;
+        tokentree->tag = TOKENTREE_TAG_ARR;
         NEXT
         while (!DONE && !GOT_CLOSE) {
-            ARRAY_PUSH(type_literal_t, literal->u.array_f, elem)
-            err = type_literal_parse(elem, lexer, store);
+            ARRAY_PUSH(tokentree_t, tokentree->u.array_f, elem)
+            err = tokentree_parse(elem, lexer, store);
             if (err) return err;
         }
         GET_CLOSE
     } else if (GOT_INT) {
         int i;
         GET_INT(i)
-        literal->tag = TYPE_LITERAL_TAG_INT;
-        literal->u.int_f = i;
+        tokentree->tag = TOKENTREE_TAG_INT;
+        tokentree->u.int_f = i;
     } else if (GOT_NAME || GOT_OP) {
         bool is_name = GOT_NAME;
         const char *string;
         GET_CONST_TOKEN(string, store)
-        literal->tag = is_name? TYPE_LITERAL_TAG_NAME: TYPE_LITERAL_TAG_OP;
-        literal->u.string_f = string;
+        tokentree->tag = is_name? TOKENTREE_TAG_NAME: TOKENTREE_TAG_OP;
+        tokentree->u.string_f = string;
     } else if (GOT_STR) {
         const char *string;
         GET_CONST_STR(string, store)
-        literal->tag = TYPE_LITERAL_TAG_STR;
-        literal->u.string_f = string;
+        tokentree->tag = TOKENTREE_TAG_STR;
+        tokentree->u.string_f = string;
     } else {
         return UNEXPECTED(
             "one of: INT (e.g. 123, -10), "
@@ -85,38 +85,38 @@ static void _str_write(FILE *f, const char *s){
     fputc('\"', f);
 }
 
-void type_literal_write(type_literal_t *literal, FILE *file, int depth) {
+void tokentree_write(tokentree_t *tokentree, FILE *file, int depth) {
     /* If depth < 0, we write arrays inline, with parentheses.
     If depth >= 0, we write arrays using ':', newlines, and indentation. */
-    switch(literal->tag) {
-        case TYPE_LITERAL_TAG_INT:
-            fprintf(file, "%i", literal->u.int_f);
+    switch(tokentree->tag) {
+        case TOKENTREE_TAG_INT:
+            fprintf(file, "%i", tokentree->u.int_f);
             break;
-        case TYPE_LITERAL_TAG_NAME:
-        case TYPE_LITERAL_TAG_OP:
-            fputs(literal->u.string_f, file);
+        case TOKENTREE_TAG_NAME:
+        case TOKENTREE_TAG_OP:
+            fputs(tokentree->u.string_f, file);
             break;
-        case TYPE_LITERAL_TAG_STR:
-            _str_write(file, literal->u.string_f);
+        case TOKENTREE_TAG_STR:
+            _str_write(file, tokentree->u.string_f);
             break;
-        case TYPE_LITERAL_TAG_ARR: {
+        case TOKENTREE_TAG_ARR: {
             if (depth < 0) fputc('(', file);
             else fputc(':', file);
-            ARRAY_FOR(type_literal_t, literal->u.array_f, elem) {
+            ARRAY_FOR(tokentree_t, tokentree->u.array_f, elem) {
                 int new_depth = depth;
                 if (new_depth < 0) {
-                    if (elem != &literal->u.array_f.elems[0]) fputc(' ', file);
+                    if (elem != &tokentree->u.array_f.elems[0]) fputc(' ', file);
                 } else {
                     new_depth++;
                     fputc('\n', file);
                     for (int i = 0; i < new_depth; i++) fputs("    ", file);
                 }
-                type_literal_write(elem, file, new_depth);
+                tokentree_write(elem, file, new_depth);
             }
             if (depth < 0) fputc(')', file);
             break;
         }
-        case TYPE_LITERAL_TAG_UNDEFINED:
+        case TOKENTREE_TAG_UNDEFINED:
             /* Caller should guarantee this never happens */
             fprintf(file, "XXX_UNDEFINED_XXX");
             break;

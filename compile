@@ -2,7 +2,7 @@ set -euo pipefail
 
 mkdir -p bin
 
-for name in fusc literal
+for name in fusc tokentree
 do
     gcc \
         --std=c99 \

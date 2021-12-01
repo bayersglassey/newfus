@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "../literal.h"
+#include "../tokentree.h"
 #include "../file_utils.h"
 #include "../lexer_macros.h"
 
@@ -15,11 +15,11 @@ bool output_inline = false;
 
 static void print_usage(FILE *file) {
     fprintf(file,
-        "Usage: literal [OPTION ...] [--] [FILE ...]\n"
+        "Usage: tokentree [OPTION ...] [--] [FILE ...]\n"
         "To read stdin, use the filename \"-\".\n"
         "Options:\n"
         "  -h  --help            Print this message and exit\n"
-        "  -i  --inline          Output literal \"inline\" as opposed to indented\n"
+        "  -i  --inline          Output tokentree \"inline\" as opposed to indented\n"
     );
 }
 
@@ -35,12 +35,12 @@ static int parse_buffer(const char *buffer, const char *filename,
     LOAD(buffer, filename)
 
     while (!DONE) {
-        type_literal_t literal;
-        err = type_literal_parse(&literal, lexer, store);
+        tokentree_t tokentree;
+        err = tokentree_parse(&tokentree, lexer, store);
         if (err) return err;
 
         int depth = output_inline? -1: 0;
-        type_literal_write(&literal, stdout, depth);
+        tokentree_write(&tokentree, stdout, depth);
         fputc('\n', stdout);
     }
 
