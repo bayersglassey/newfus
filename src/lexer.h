@@ -58,7 +58,7 @@ typedef struct lexer {
     int col;
     int indent;
     int indents_size;
-    int n_indents;
+    int indents_len;
     int *indents;
 
     /* If positive, represents a series of "(" tokens being returned.

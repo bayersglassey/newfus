@@ -44,9 +44,9 @@ void lexer_dump(lexer_t *lexer, FILE *f) {
     fprintf(f, "  col = %i\n", lexer->col);
     fprintf(f, "  indent = %i\n", lexer->indent);
     fprintf(f, "  indents_size = %i\n", lexer->indents_size);
-    fprintf(f, "  n_indents = %i\n", lexer->n_indents);
+    fprintf(f, "  indents_len = %i\n", lexer->indents_len);
     fprintf(f, "  indents:\n");
-    for (int i = 0; i < lexer->n_indents; i++) {
+    for (int i = 0; i < lexer->indents_len; i++) {
         fprintf(f, "    %i\n", lexer->indents[i]);
     }
     fprintf(f, "  returning_indents = %i\n", lexer->returning_indents);
@@ -102,7 +102,7 @@ void lexer_unload(lexer_t *lexer) {
     lexer->row = 0;
     lexer->col = 0;
     lexer->indent = 0;
-    lexer->n_indents = 0;
+    lexer->indents_len = 0;
     lexer->returning_indents = 0;
 }
 
@@ -132,7 +132,7 @@ static int lexer_push_indent(
     lexer_t *lexer,
     int indent
 ) {
-    if (lexer->n_indents >= lexer->indents_size) {
+    if (lexer->indents_len >= lexer->indents_size) {
         int indents_size = lexer->indents_size;
         int new_indents_size = indents_size * 2;
         int *new_indents = realloc(lexer->indents,
@@ -145,19 +145,19 @@ static int lexer_push_indent(
         lexer->indents_size = new_indents_size;
     }
 
-    lexer->n_indents++;
-    lexer->indents[lexer->n_indents-1] = indent;
+    lexer->indents_len++;
+    lexer->indents[lexer->indents_len-1] = indent;
     return 0;
 }
 
 static int lexer_pop_indent(lexer_t *lexer) {
-    if (lexer->n_indents == 0) {
+    if (lexer->indents_len == 0) {
         lexer_err_info(lexer);
         fprintf(stderr,
             "Tried to pop an indent, but indents stack is empty\n");
         return 2;
     }
-    lexer->n_indents--;
+    lexer->indents_len--;
     return 0;
 }
 
@@ -331,8 +331,8 @@ int lexer_next(lexer_t *lexer) {
             err = lexer_get_indent(lexer);
             if (err) return err;
             int new_indent = lexer->indent;
-            while (lexer->n_indents > 0) {
-                int indent = lexer->indents[lexer->n_indents-1];
+            while (lexer->indents_len > 0) {
+                int indent = lexer->indents[lexer->indents_len-1];
                 if (new_indent <= indent) {
                     err = lexer_pop_indent(lexer);
                     if (err) return err;
