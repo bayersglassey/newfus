@@ -467,7 +467,7 @@ static int compiler_parse_struct_or_union(compiler_t *compiler,
 }
 
 static int compiler_parse_struct_or_union_or_func_def(compiler_t *compiler,
-    compiler_frame_t *frame, type_def_t **def_ptr
+    compiler_frame_t *frame, type_def_t **def_ptr, char c
 ) {
     int err;
     lexer_t *lexer = compiler->lexer;
@@ -477,8 +477,14 @@ static int compiler_parse_struct_or_union_or_func_def(compiler_t *compiler,
         fprintf(stderr, "%s: %s\n", __func__, frame? frame->type_name: "(none)");
     }
 
-    bool is_func = lexer->token[0] == 'f' || lexer->token[0] == 'm';
-    bool is_union = lexer->token[0] == 'u';
+    /* NOTE: c is just used to indicate type.
+    It should be one of:
+
+        'f'unction, 'm'ethod, 'u'nion, 's'truct
+    */
+    bool is_func = c == 'f' || c == 'm';
+    bool is_union = c == 'u';
+
     NEXT
 
     /* NOTE: we may be called in one of two ways... either as a top-level
@@ -522,6 +528,9 @@ static int compiler_parse_type(compiler_t *compiler,
         compiler_debug_info(compiler);
         fprintf(stderr, "%s: %s\n", __func__, frame->type_name);
     }
+
+    /* Character used to indicate type */
+    char c;
 
     if (GOT("@")) {
         NEXT
@@ -618,10 +627,15 @@ static int compiler_parse_type(compiler_t *compiler,
         /* Caller gets an *alias* to our array type */
         type->tag = TYPE_TAG_ALIAS;
         type->u.alias_f.def = def;
-    } else if (GOT("struct") || GOT("union") || GOT("func") || GOT("method")) {
+    } else if (
+        (GOT("struct") && (c = 's')) ||
+        (GOT("union") && (c = 'u')) ||
+        (GOT("func") && (c = 'f')) ||
+        (GOT("method") && (c = 'm'))
+    ) {
         type_def_t *def;
         err = compiler_parse_struct_or_union_or_func_def(compiler, frame,
-            &def);
+            &def, c);
         if (err) return err;
 
         /* If the type to be returned to caller is different than the type
@@ -653,6 +667,9 @@ int compiler_parse_defs(compiler_t *compiler) {
     int err;
     lexer_t *lexer = compiler->lexer;
 
+    /* Character used to indicate type */
+    char c;
+
     while (!DONE && !GOT_CLOSE) {
         if (GOT("typedef")) {
             NEXT
@@ -675,10 +692,15 @@ int compiler_parse_defs(compiler_t *compiler) {
             err = compiler_parse_type(compiler, &frame, &def->type);
             if (err) return err;
             GET_CLOSE
-        } else if (GOT("struct") || GOT("union") || GOT("func") || GOT("method")) {
+        } else if (
+            (GOT("struct") && (c = 's')) ||
+            (GOT("union") && (c = 'u')) ||
+            (GOT("func") && (c = 'f')) ||
+            (GOT("method") && (c = 'm'))
+        ) {
             type_def_t *def;
             err = compiler_parse_struct_or_union_or_func_def(compiler, NULL,
-                &def);
+                &def, c);
             if (err) return err;
         } else if (GOT("package")) {
             NEXT
