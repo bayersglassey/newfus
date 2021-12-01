@@ -6,6 +6,8 @@
 
 #include "compiler.h"
 #include "str_utils.h"
+#include "stringstore.h"
+#include "lexer.h"
 #include "lexer_macros.h"
 
 

@@ -4,6 +4,9 @@
 #include <stdlib.h>
 
 #include "type.h"
+#include "lexer.h"
+#include "stringstore.h"
+
 
 void type_ref_cleanup(type_ref_t *ref) {
     type_cleanup(&ref->type);

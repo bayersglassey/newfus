@@ -5,6 +5,8 @@
 #include <string.h>
 
 #include "compiler.h"
+#include "lexer.h"
+#include "stringstore.h"
 
 
 void compiler_init(compiler_t *compiler, lexer_t *lexer,

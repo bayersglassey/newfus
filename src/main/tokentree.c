@@ -7,6 +7,8 @@
 
 #include "../tokentree.h"
 #include "../file_utils.h"
+#include "../stringstore.h"
+#include "../lexer.h"
 #include "../lexer_macros.h"
 
 

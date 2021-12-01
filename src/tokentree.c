@@ -4,6 +4,8 @@
 #include <stdbool.h>
 
 #include "tokentree.h"
+#include "stringstore.h"
+#include "lexer.h"
 #include "lexer_macros.h"
 
 

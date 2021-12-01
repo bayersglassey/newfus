@@ -7,7 +7,9 @@
 #include <ctype.h>
 #include <string.h>
 
-#include "stringstore.h"
+/* Expected from other translation units */
+typedef struct stringstore stringstore_t;
+typedef struct tokentree tokentree_t;
 
 /*
     Lexer usage example:

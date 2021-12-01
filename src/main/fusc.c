@@ -6,6 +6,8 @@
 
 #include "../compiler.h"
 #include "../file_utils.h"
+#include "../stringstore.h"
+#include "../lexer.h"
 
 
 bool debug = false;

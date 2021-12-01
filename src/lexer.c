@@ -1,6 +1,8 @@
 
 
 #include "lexer.h"
+#include "stringstore.h"
+#include "tokentree.h"
 
 
 static size_t _strnlen(const char *s, size_t maxlen) {

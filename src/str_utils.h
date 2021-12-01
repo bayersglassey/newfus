@@ -5,6 +5,9 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
+
+#include "stringstore.h"
 
 
 static char *_strdup(const char *s1){

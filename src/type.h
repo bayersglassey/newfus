@@ -6,8 +6,10 @@
 #include <stdio.h>
 
 #include "array.h"
-#include "lexer.h"
-#include "stringstore.h"
+
+/* Expected from other translation units */
+typedef struct lexer lexer_t;
+typedef struct stringstore stringstore_t;
 
 
 #define DECLARE_TYPE(TYPE) \
