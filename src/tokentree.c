@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "tokentree.h"
-#include "stringstore.h"
 #include "lexer.h"
 #include "lexer_macros.h"
 
@@ -23,9 +23,7 @@ void tokentree_cleanup(tokentree_t *tokentree) {
 }
 
 
-int tokentree_parse(tokentree_t *tokentree, lexer_t *lexer,
-    stringstore_t *store
-) {
+int tokentree_parse(tokentree_t *tokentree, lexer_t *lexer) {
     int err;
 
     memset(tokentree, 0, sizeof(*tokentree));
@@ -36,7 +34,7 @@ int tokentree_parse(tokentree_t *tokentree, lexer_t *lexer,
         NEXT
         while (!DONE && !GOT_CLOSE) {
             ARRAY_PUSH(tokentree_t, tokentree->u.array_f, elem)
-            err = tokentree_parse(elem, lexer, store);
+            err = tokentree_parse(elem, lexer);
             if (err) return err;
         }
         GET_CLOSE
@@ -47,17 +45,17 @@ int tokentree_parse(tokentree_t *tokentree, lexer_t *lexer,
         tokentree->u.int_f = i;
     } else if (GOT_NAME) {
         const char *string;
-        GET_CONST_NAME(string, store)
+        GET_CONST_NAME(string)
         tokentree->tag = TOKENTREE_TAG_NAME;
         tokentree->u.string_f = string;
     } else if (GOT_OP) {
         const char *string;
-        GET_CONST_OP(string, store)
+        GET_CONST_OP(string)
         tokentree->tag = TOKENTREE_TAG_OP;
         tokentree->u.string_f = string;
     } else if (GOT_STR) {
         const char *string;
-        GET_CONST_STR(string, store)
+        GET_CONST_STR(string)
         tokentree->tag = TOKENTREE_TAG_STR;
         tokentree->u.string_f = string;
     } else {
@@ -65,7 +63,7 @@ int tokentree_parse(tokentree_t *tokentree, lexer_t *lexer,
             "one of: INT (e.g. 123, -10), "
             "NAME (e.g. x, x2, hello_world, SomeName), "
             "OP (e.g. +, --, =>), "
-            "STR (e.g. \"hello world\", \"\\\"two\\\"\\nlines\"), "
+            "STR (e.g. \"hello world\", \"a \\\"quoted\\\" thing\", \"two\\nlines\"), "
             "ARR (e.g. (1 2 3))");
     }
     return 0;

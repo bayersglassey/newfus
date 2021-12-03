@@ -132,13 +132,13 @@ int main(int n_args, char **args) {
     }
 
     {
+        stringstore_t store;
         lexer_t lexer;
-        stringstore_t stringstore;
         compiler_t compiler;
 
-        lexer_init(&lexer);
-        stringstore_init(&stringstore);
-        compiler_init(&compiler, &lexer, &stringstore);
+        stringstore_init(&store);
+        lexer_init(&lexer, &store);
+        compiler_init(&compiler, &lexer, &store);
 
         compiler.debug = debug;
 
@@ -150,7 +150,7 @@ int main(int n_args, char **args) {
 
         compiler_cleanup(&compiler);
         lexer_cleanup(&lexer);
-        stringstore_cleanup(&stringstore);
+        stringstore_cleanup(&store);
     }
 
     fprintf(stderr, "OK!\n");

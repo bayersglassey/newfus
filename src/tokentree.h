@@ -10,7 +10,6 @@
 
 /* Expected from other translation units */
 typedef struct lexer lexer_t;
-typedef struct stringstore stringstore_t;
 
 
 typedef struct tokentree tokentree_t;
@@ -28,6 +27,13 @@ enum tokentree_tag {
     TOKENTREE_TAGS
 };
 
+static bool tokentree_tag_is_string(int tag) {
+    return
+        tag == TOKENTREE_TAG_NAME ||
+        tag == TOKENTREE_TAG_OP ||
+        tag == TOKENTREE_TAG_STR;
+}
+
 struct tokentree {
     int tag; /* enum tokentree_tag */
     union {
@@ -38,8 +44,7 @@ struct tokentree {
 };
 
 void tokentree_cleanup(tokentree_t *tokentree);
-int tokentree_parse(tokentree_t *tokentree, lexer_t *lexer,
-    stringstore_t *store);
+int tokentree_parse(tokentree_t *tokentree, lexer_t *lexer);
 void tokentree_write(tokentree_t *tokentree, FILE *file, int depth);
 
 

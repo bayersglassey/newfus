@@ -13,6 +13,7 @@
 
 
 bool output_inline = false;
+bool reparse = false;
 
 
 static void print_usage(FILE *file) {
@@ -22,6 +23,8 @@ static void print_usage(FILE *file) {
         "Options:\n"
         "  -h  --help            Print this message and exit\n"
         "  -i  --inline          Output tokentree \"inline\" as opposed to indented\n"
+        "  -r  --reparse         Parse the parsed tokentree\n"
+        "                        (for testing lexer_load_tokentree)\n"
     );
 }
 
@@ -32,14 +35,38 @@ static int parse_buffer(const char *buffer, const char *filename,
     int err;
 
     lexer_t _lexer, *lexer=&_lexer;
-    lexer_init(lexer);
+    lexer_init(lexer, store);
 
-    LOAD(buffer, filename)
+    err = lexer_load(lexer, buffer, filename);
+    if (err) return err;
 
-    while (!DONE) {
+    while (!lexer_done(lexer)) {
         tokentree_t tokentree;
-        err = tokentree_parse(&tokentree, lexer, store);
+        err = tokentree_parse(&tokentree, lexer);
         if (err) return err;
+
+        if (reparse) {
+            /* Re-parse the tokentree from itself, to test
+            lexer_load_tokentree. */
+
+            lexer_t _lexer2, *lexer2=&_lexer2;
+            lexer_init(lexer2, store);
+
+            err = lexer_load_tokentree(lexer2, &tokentree, filename);
+            if (err) return err;
+
+            tokentree_t tokentree2;
+            err = tokentree_parse(&tokentree2, lexer2);
+            if (err) return err;
+
+            lexer_cleanup(lexer2);
+
+            /* Replace the original tokentree (which was parsed from the
+            text buffer) with the new one (which was parsed from the old
+            one) */
+            tokentree_cleanup(&tokentree);
+            tokentree = tokentree2;
+        }
 
         int depth = output_inline? -1: 0;
         tokentree_write(&tokentree, stdout, depth);
@@ -64,6 +91,8 @@ int main(int n_args, char **args) {
             return 0;
         } else if (!strcmp(arg, "-i") || !strcmp(arg, "--inline")) {
             output_inline = true;
+        } else if (!strcmp(arg, "-r") || !strcmp(arg, "--reparse")) {
+            reparse = true;
         } else if (!strcmp(arg, "--")) {
             arg_i++;
             break;

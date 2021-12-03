@@ -279,7 +279,7 @@ static int compiler_parse_type_field(compiler_t *compiler,
     lexer_t *lexer = compiler->lexer;
 
     const char *field_name;
-    GET_CONST_NAME(field_name, compiler->store)
+    GET_CONST_NAME(field_name)
 
     if (compiler->debug) {
         compiler_debug_info(compiler);
@@ -327,7 +327,7 @@ static int compiler_parse_type_arg(compiler_t *compiler,
     lexer_t *lexer = compiler->lexer;
 
     const char *arg_name;
-    GET_CONST_NAME(arg_name, compiler->store)
+    GET_CONST_NAME(arg_name)
 
     if (compiler->debug) {
         compiler_debug_info(compiler);
@@ -497,7 +497,7 @@ static int compiler_parse_struct_or_union_or_func_def(compiler_t *compiler,
     const char *type_name = frame? frame->type_name: NULL;
     if (!frame || GOT_NAME) {
         const char *_type_name;
-        GET_CONST_NAME(_type_name, compiler->store)
+        GET_CONST_NAME(_type_name)
 
         type_name = compiler_get_packaged_name(compiler, _type_name);
         if (!type_name) return 1;
@@ -538,7 +538,7 @@ static int compiler_parse_type(compiler_t *compiler,
         NEXT
 
         const char *name;
-        GET_CONST_NAME(name, compiler->store)
+        GET_CONST_NAME(name)
 
         /* Get def */
         type_def_t *def;
@@ -565,7 +565,7 @@ static int compiler_parse_type(compiler_t *compiler,
         NEXT
 
         const char *packaged_name;
-        GET_CONST_NAME(packaged_name, compiler->store)
+        GET_CONST_NAME(packaged_name)
 
         /* Get def */
         type_def_t *def;
@@ -652,7 +652,7 @@ static int compiler_parse_type(compiler_t *compiler,
 
         GET_OPEN
         const char *extern_name;
-        GET_CONST_NAME(extern_name, compiler->store)
+        GET_CONST_NAME(extern_name)
         GET_CLOSE
 
         type->tag = TYPE_TAG_EXTERN;
@@ -677,7 +677,7 @@ int compiler_parse_defs(compiler_t *compiler) {
             NEXT
 
             const char *name;
-            GET_CONST_NAME(name, compiler->store)
+            GET_CONST_NAME(name)
 
             const char *packaged_name = compiler_get_packaged_name(compiler,
                 name);
@@ -709,7 +709,7 @@ int compiler_parse_defs(compiler_t *compiler) {
 
             const char *package_name;
             GET_OPEN
-            GET_CONST_NAME(package_name, compiler->store)
+            GET_CONST_NAME(package_name)
             GET_CLOSE
 
             /* The magic name "_" means "no package" */
@@ -722,12 +722,12 @@ int compiler_parse_defs(compiler_t *compiler) {
             NEXT
 
             const char *from_package_name;
-            GET_CONST_NAME(from_package_name, compiler->store)
+            GET_CONST_NAME(from_package_name)
 
             GET_OPEN
             while (!DONE && !GOT_CLOSE) {
                 const char *name;
-                GET_CONST_NAME(name, compiler->store)
+                GET_CONST_NAME(name)
 
                 const char *packaged_name = _const_strjoin3(compiler->store,
                     from_package_name, "_", name);
