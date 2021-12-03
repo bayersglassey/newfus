@@ -1,6 +1,7 @@
 set -euo pipefail
 
-mkdir -p bin
+rm -rf ./bin
+mkdir -p ./bin
 
 for name in fusc tokentree
 do
