@@ -108,6 +108,9 @@ void compiler_write_cfile(compiler_t *compiler, FILE *file) {
 
 void compiler_write_typedefs(compiler_t *compiler, FILE *file) {
 
+    fprintf(file, "typedef struct lexer lexer_t;\n");
+    fprintf(file, "typedef struct writer writer_t;\n");
+
     fprintf(file, "typedef struct %s %s_t;\n",
         compiler->any_type_name, compiler->any_type_name);
     fprintf(file, "typedef struct %s %s_t;\n",
@@ -204,7 +207,9 @@ void compiler_write_structs(compiler_t *compiler, FILE *file) {
     fprintf(file, "struct %s {\n", compiler->type_type_name);
     fprintf(file, "    const char *name;\n");
     fprintf(file, "    /* TODO: tag and union with type's details, e.g. fields */\n");
-    fprintf(file, "    void (*cleanup_voidstar)(void *it);\n");
+    fprintf(file, "    void (*cleanup)(void *it);\n");
+    fprintf(file, "    int (*parse)(void *it, lexer_t *lexer);\n");
+    fprintf(file, "    int (*write)(void *it, writer_t *writer);\n");
     fprintf(file, "};\n");
 
     ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
@@ -261,63 +266,64 @@ void compiler_write_type_declarations(compiler_t *compiler, FILE *file) {
 
 }
 
+static void _write_prototypes(const char *name, type_t *type,
+    FILE *file
+) {
+    if (type->tag == TYPE_TAG_UNION) {
+        fprintf(file, "static const char *%s_tag_string(int tag /* enum %s_tag */) {\n",
+            name, name);
+        fprintf(file, "    switch (tag) {\n");
+        ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
+            fprintf(file, "        case %s: return \"%s\";\n",
+                field->tag_name, field->tag_name);
+        }
+        fprintf(file, "        default: return \"__unknown__\";\n");
+        fprintf(file, "    }\n");
+        fprintf(file, "}\n");
+    }
+
+    if (type_has_cleanup(type)) {
+        if (type->tag == TYPE_TAG_ALIAS) {
+            type_def_t *subdef = type_get_def(type);
+            fprintf(file, "#define %s_cleanup %s_cleanup\n",
+                name, subdef->name);
+            fprintf(file, "#define %s_cleanup_voidstar %s_cleanup_voidstar\n",
+                name, subdef->name);
+        } else {
+            fprintf(file, "void %s_cleanup(%s_t *it);\n",
+                name, name);
+            fprintf(file, "void %s_cleanup_voidstar(void *it);\n",
+                name);
+        }
+    } else {
+        fprintf(file, "#define %s_cleanup (void)\n", name);
+        fprintf(file, "#define %s_cleanup_voidstar (void)\n", name);
+    }
+
+    fprintf(file, "int %s_parse(%s_t *it, lexer_t *lexer);\n", name, name);
+    fprintf(file, "int %s_parse_voidstar(void *it, lexer_t *lexer);\n", name);
+    fprintf(file, "int %s_write(%s_t *it, writer_t *writer);\n", name, name);
+    fprintf(file, "int %s_write_voidstar(void *it, writer_t *writer);\n", name);
+}
+
 void compiler_write_prototypes(compiler_t *compiler, FILE *file) {
 
-    fprintf(file, "void %s_cleanup(%s_t *it);\n",
-        compiler->any_type_name, compiler->any_type_name);
-    fprintf(file, "void %s_cleanup_voidstar(void *it);\n",
-        compiler->any_type_name);
-    fprintf(file, "#define %s_cleanup (void)\n",
-        compiler->type_type_name);
-    fprintf(file, "#define %s_cleanup_voidstar (void)\n",
-        compiler->type_type_name);
+
+    type_t type_any = { .tag = TYPE_TAG_ANY };
+    _write_prototypes("any", &type_any, file);
+
+    type_t type_type = { .tag = TYPE_TAG_TYPE };
+    _write_prototypes("type", &type_type, file);
 
     ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
         type_t *type = &def->type;
-
-        /* Undefined defs are expected to be defined "elsewhere", i.e. in
-        another .h file.
-        We can't even try to define a prototype because the function name
-        might be a macro. */
-        if (type->tag == TYPE_TAG_UNDEFINED) continue;
-
-        if (type->tag == TYPE_TAG_UNION) {
-            fprintf(file, "static const char *%s_tag_string(int tag /* enum %s_tag */) {\n",
-                def->name, def->name);
-            fprintf(file, "    switch (tag) {\n");
-            ARRAY_FOR(type_field_t, type->u.struct_f.fields, field) {
-                fprintf(file, "        case %s: return \"%s\";\n",
-                    field->tag_name, field->tag_name);
-            }
-            fprintf(file, "        default: return \"__unknown__\";\n");
-            fprintf(file, "    }\n");
-            fprintf(file, "}\n");
-        }
-
-
-        if (type_has_cleanup(type)) {
-            if (type->tag == TYPE_TAG_ALIAS) {
-                type_def_t *subdef = type_get_def(type);
-                fprintf(file, "#define %s_cleanup %s_cleanup\n",
-                    def->name, subdef->name);
-                fprintf(file, "#define %s_cleanup_voidstar %s_cleanup_voidstar\n",
-                    def->name, subdef->name);
-            } else {
-                fprintf(file, "void %s_cleanup(%s_t *it);\n",
-                    def->name, def->name);
-                fprintf(file, "void %s_cleanup_voidstar(void *it);\n",
-                    def->name);
-            }
-        } else {
-            fprintf(file, "#define %s_cleanup (void)\n", def->name);
-            fprintf(file, "#define %s_cleanup_voidstar (void)\n", def->name);
-        }
+        _write_prototypes(def->name, type, file);
     }
 }
 
-static const char *_type_cleanup_name(type_t *type) {
-    /* Returns the string which, with "_cleanup" appended to it, is the
-    name of this type's cleanup function */
+static const char *_type_function_name(type_t *type) {
+    /* Returns the string which, with suffixes such as "_cleanup", "_parse",
+    etc, forms the names of this type's associated C functions */
 
     switch (type->tag) {
         case TYPE_TAG_ANY:
@@ -351,7 +357,7 @@ static void _write_cleanup_function(type_def_t *def, FILE *file) {
             if (!ref->is_weakref && type_has_cleanup(&ref->type)) {
                 fprintf(file, "    for (int i = 0; i < it->len; i++) {\n");
                 fprintf(file, "        %s_cleanup(%sit->elems[i]);\n",
-                    _type_cleanup_name(&ref->type),
+                    _type_function_name(&ref->type),
                     type_ref_is_inplace(ref)? "&": "");
                 fprintf(file, "    }\n");
             }
@@ -367,7 +373,7 @@ static void _write_cleanup_function(type_def_t *def, FILE *file) {
                 type_ref_t *ref = &field->ref;
                 if (!ref->is_weakref && type_has_cleanup(&ref->type)) {
                     fprintf(file, "    %s_cleanup(%sit->%s);\n",
-                        _type_cleanup_name(&ref->type),
+                        _type_function_name(&ref->type),
                         type_ref_is_inplace(ref)? "&": "",
                         field->name);
                 }
@@ -385,7 +391,7 @@ static void _write_cleanup_function(type_def_t *def, FILE *file) {
                 if (!ref->is_weakref && type_has_cleanup(&ref->type)) {
                     fprintf(file, "        case %s:\n", field->tag_name);
                     fprintf(file, "            %s_cleanup(%sit->u.%s);\n",
-                        _type_cleanup_name(&ref->type),
+                        _type_function_name(&ref->type),
                         type_ref_is_inplace(ref)? "&": "",
                         field->name);
                     fprintf(file, "            break;\n");
@@ -406,6 +412,42 @@ static void _write_cleanup_function(type_def_t *def, FILE *file) {
         def->name, def->name, def->name);
 }
 
+static void _write_parse_function(type_def_t *def, FILE *file) {
+    //type_t *type = &def->type;
+
+    fprintf(file, "int %s_parse(%s_t *it, lexer_t *lexer) {\n",
+        def->name, def->name);
+    fprintf(file, "}\n");
+    fprintf(file, "int %s_parse_voidstar(void *it, lexer_t *lexer) { return %s_parse((%s_t *) it, lexer); }\n",
+        def->name, def->name, def->name);
+}
+
+static void _write_write_function(type_def_t *def, FILE *file) {
+    //type_t *type = &def->type;
+
+    fprintf(file, "int %s_write(%s_t *it, writer_t *writer) {\n",
+        def->name, def->name);
+    fprintf(file, "}\n");
+    fprintf(file, "int %s_write_voidstar(void *it, writer_t *writer) { return %s_write((%s_t *) it, writer); }\n",
+        def->name, def->name, def->name);
+}
+
+static void _write_type_definition(const char *name, type_t *type,
+    FILE *file, bool first
+) {
+    fprintf(file, "    %s{\n", first? "": ",");
+    fprintf(file, "        .name = \"%s\",\n", name);
+    if (type_has_cleanup(type)) {
+        fprintf(file, "        .cleanup = &%s_cleanup_voidstar,\n",
+            name);
+    } else {
+        fprintf(file, "        .cleanup = NULL,\n");
+    }
+    fprintf(file, "        .parse = &%s_parse_voidstar,\n", name);
+    fprintf(file, "        .write = &%s_write_voidstar,\n", name);
+    fprintf(file, "    }\n");
+}
+
 void compiler_write_type_definitions(compiler_t *compiler, FILE *file) {
 
     fprintf(file, "%s_t %s[%s] = { /* Indexed by: enum %s */\n",
@@ -414,39 +456,14 @@ void compiler_write_type_definitions(compiler_t *compiler, FILE *file) {
         compiler->types_name_upper,
         compiler->types_name);
 
-    {
-        /* TYPE_TAG_ANY */
-        fprintf(file, "    {\n");
-        fprintf(file, "        .name = \"%s\",\n",
-            compiler->any_type_name);
-        fprintf(file, "        .cleanup_voidstar = &%s_cleanup_voidstar,\n",
-            compiler->any_type_name);
-        fprintf(file, "    }\n");
-    }
+    type_t type_any = { .tag = TYPE_TAG_ANY };
+    _write_type_definition("any", &type_any, file, true);
 
-    {
-        /* TYPE_TAG_TYPE */
-        fprintf(file, "    ,{\n");
-        fprintf(file, "        .name = \"%s\",\n",
-            compiler->type_type_name);
-        fprintf(file, "        .cleanup_voidstar = NULL,\n");
-        fprintf(file, "    }\n");
-    }
+    type_t type_type = { .tag = TYPE_TAG_TYPE };
+    _write_type_definition("type", &type_type, file, false);
 
     ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
-        fprintf(file, "    ,{\n");
-        fprintf(file, "        .name = \"%s\",\n",
-            def->name);
-
-        type_t *type = &def->type;
-        if (type_has_cleanup(type)) {
-            fprintf(file, "        .cleanup_voidstar = &%s_cleanup_voidstar,\n",
-                def->name);
-        } else {
-            fprintf(file, "        .cleanup_voidstar = NULL,\n");
-        }
-
-        fprintf(file, "    }\n");
+        _write_type_definition(def->name, &def->type, file, false);
     }
 
     fprintf(file, "};\n");
@@ -454,18 +471,73 @@ void compiler_write_type_definitions(compiler_t *compiler, FILE *file) {
 
 void compiler_write_functions(compiler_t *compiler, FILE *file) {
 
-    fprintf(file, "void %s_cleanup(%s_t *it) {\n",
-        compiler->any_type_name, compiler->any_type_name);
-    fprintf(file, "    if (!it->type || !it->type->cleanup_voidstar) return;\n");
-    fprintf(file, "    /* NOTE: we can safely use it->u.p, because types which have\n");
-    fprintf(file, "    a cleanup function are guaranteed to use pointers. */\n");
-    fprintf(file, "    it->type->cleanup_voidstar(it->u.p);\n");
-    fprintf(file, "}\n");
-    fprintf(file, "void %s_cleanup_voidstar(void *it) { %s_cleanup((%s_t *) it); }\n",
-        compiler->any_type_name, compiler->any_type_name,
-        compiler->any_type_name);
+    {
+        /* TYPE_TAG_ANY */
+
+        const char *name = compiler->any_type_name;
+
+        fprintf(file, "void %s_cleanup(%s_t *it) {\n",
+            name, name);
+        fprintf(file, "    if (!it->type || !it->type->cleanup) return;\n");
+        fprintf(file, "    /* NOTE: we can safely use it->u.p, because types which have\n");
+        fprintf(file, "    a cleanup function are guaranteed to use pointers. */\n");
+        fprintf(file, "    it->type->cleanup(it->u.p);\n");
+        fprintf(file, "}\n");
+        fprintf(file, "void %s_cleanup_voidstar(void *it) { %s_cleanup((%s_t *) it); }\n",
+            name, name,
+            name);
+
+        fprintf(file, "int %s_parse(%s_t *it, lexer_t *lexer) {\n",
+            name, name);
+        /* !!! TODO !!! */
+        fprintf(file, "}\n");
+        fprintf(file, "int %s_parse_voidstar(void *it, lexer_t *lexer) { return %s_parse((%s_t *) it, lexer); }\n",
+            name, name,
+            name);
+
+        fprintf(file, "int %s_write(%s_t *it, writer_t *writer) {\n",
+            name, name);
+        /* !!! TODO !!! */
+        fprintf(file, "}\n");
+        fprintf(file, "int %s_write_voidstar(void *it, writer_t *writer) { return %s_write((%s_t *) it, writer); }\n",
+            name, name,
+            name);
+    }
+
+    {
+        /* TYPE_TAG_TYPE */
+
+        const char *name = compiler->type_type_name;
+
+        fprintf(file, "int %s_parse(%s_t *it, lexer_t *lexer) {\n",
+            name, name);
+        /* !!! TODO !!! */
+        /* Ok, unfortunately at the moment we have type_t *it, which we must
+        populate... except that each type is represented by a UNIQUE type_t*
+        value.
+        So we can't just make *it look like the correct type_t.
+        So, I hereby propose renaming current struct type to struct type_info,
+        and then having a new struct type { int index }, where index is an
+        index into extern type_t types[TYPES].
+        And then all we need to do is... parse a type name, and look up its
+        index by iterating over types[TYPES]. */
+        fprintf(file, "}\n");
+        fprintf(file, "int %s_parse_voidstar(void *it, lexer_t *lexer) { return %s_parse((%s_t *) it, lexer); }\n",
+            name, name, name);
+
+        fprintf(file, "int %s_write(%s_t *it, writer_t *writer) {\n",
+            name, name);
+        /* !!! TODO !!! */
+        /* See above, here we should look up type_info_t *info using it->index
+        as an index into types[TYPES], and then we should write info->name. */
+        fprintf(file, "}\n");
+        fprintf(file, "int %s_write_voidstar(void *it, writer_t *writer) { return %s_write((%s_t *) it, writer); }\n",
+            name, name, name);
+    }
 
     ARRAY_FOR_PTR(type_def_t, compiler->defs, def) {
         _write_cleanup_function(def, file);
+        _write_parse_function(def, file);
+        _write_write_function(def, file);
     }
 }
