@@ -1,6 +1,19 @@
 
 
-We've added TYPE_TAG_FUNCTION, now we need to add methods.
+
+*** WE NEED A BETTER WORD THAN "STRING" FOR "NAME OR OP". "WORD"?.. "SYM"? ***
+*** (TO DISTINGUISH FROM "STR") ***
+
+
+We should probably rename LEXER_TOKEN_* to just TOKEN_* (or FUS_TOKEN*),
+since they're part of the FUS language which is used by e.g. both lexer and writer.
+Also... some day we're gonna want to have a proper prefix on our FUS stuff.
+So maybe... we should do that soon.
+Prefix is "fus_", yeah? Or is it "newfus_"?
+
+
+
+We've added TYPE_TAG_FUNC, now we need to add methods.
 Function/method type syntax:
 
     (function | method) [NAME]:
@@ -13,6 +26,69 @@ be "static" in the sense that they just represent C functions with arbitrary
 arguments, *BUT* if we start adding scripting, then we can add a special
 operator which attempts to call a method passing its object as first argument.
 So for now we don't have to worry about that.
+
+Isn't there a difference between a "function type" and a function?
+So do we need separate syntax for "functype" and "func"?
+
+    # any_t dup(any_t x, any_t y);
+    func dup:
+        ret: any
+        args:
+            x: any
+            y: any
+
+    # typedef any_t dup_t(any_t x, any_t y);
+    functype dup:
+        ret: any
+        args:
+            x: any
+            y: any
+
+...OH WAIT! What about "func" defines a function type, and "def NAME: ..."
+defines a constant value, INCLUDING FUNCTIONS?..
+
+    def x: int
+    as: 3
+
+    def dup: func:
+        ret: struct:
+            x: any
+            y: any
+        args:
+            x: any
+    as:
+        new @dup_ret
+        'x =.x
+        'x =.y
+        ret
+
+    # ...but how do we provided their values?..
+    # The integer value in the case of x, and the function body
+    # in the case of dup?..
+
+By the way, don't we want C structs to be passed and returned as pointers?
+So instead of:
+
+    any_t dup(any_t x, any_t y);
+
+...we presumably want:
+
+    any_t *dup(any_t *x, any_t *y);
+
+...right?..
+Doesn't that mean type_tag_is_pointer's name isn't quite right?
+It's meant for use with type_ref_t, whose name is also not quite right,
+because really it's just for use with *fields* (of C structs/unions),
+not with function arguments or return values.
+So we need like... type_tag_is_pointer_field and type_tag_is_pointer_arg,
+or something.
+
+OR, do we want to use actual refs for function ret & args?
+Because then type_tag_is_pointer can stay just how it is, but args
+can be inplace or weakref. Or out. Is that too crazy?
+That doesn't even work, because e.g. ANY isn't allowed to be inplace.
+
+
 
 
 
@@ -29,5 +105,93 @@ compiler_write.c).
 Figure out how parsing and writing are going to work.
 In particular, how is that going to work with weakrefs?
 It would be cool if the fus syntax could do pointers, I guess.
+...Oh, and parsing & writing can be used right off the bat for
+literals! Thence constant values!
 
+    def NAME: TYPE
+    as: LITERAL
 
+TYPE_TAG_VOID: not allowed
+TYPE_TAG_ANY:
+    @my_int: 3
+    @@my_int: 3
+TYPE_TAG_TYPE:
+    @mytype
+    @@mytype
+TYPE_TAG_INT: 3
+TYPE_TAG_ERR: 3
+TYPE_TAG_STRING:
+    hello
+    "world"
+TYPE_TAG_BOOL:
+    T
+    F
+TYPE_TAG_BYTE:
+    65
+    A
+TYPE_TAG_ARRAY: (1 2 3)
+TYPE_TAG_STRUCT: (x(1) y(2))
+TYPE_TAG_UNION: int_field(3)
+TYPE_TAG_ALIAS: a value of the aliased type
+TYPE_TAG_FUNC: ('x 1 + return)  ....??? TO BE DETERMINED...
+TYPE_TAG_EXTERN:
+    ...hmmmm... probably we allow the name of a static C object.
+    So like, in C:
+
+        SDL_Color sdl_black = {0, 0, 0};
+
+    ...and then in FUS:
+
+        extern color: SDL_Color
+
+        def black: @color
+        as: sdl_black
+
+    ...?
+
+...now, if we're going to do this, we need to be able to store FUS literals.
+For instance, we may not know the definition of @mystruct yet, so how do we
+store this:
+
+    def x: int
+    as 3
+
+    # NOTE: if types which don't expect an array (...) are still able
+    # to accept one *if it has exactly one element*, then we could also
+    # allow the following (with a colon after the "as"):
+    def x: int
+    as: 3
+
+    def xx: array: int
+    as: 1 2 3
+
+    def myobj: @mystruct
+    as:
+        name: "hello"
+        age: 20
+        int_arrays:
+            : 1 2 3
+            : 4 5 6
+
+    # Note, name and age don't require colons after them:
+    def myobj: @mystruct
+    as:
+        name "hello"
+        age 20
+        int_arrays:
+            : 1 2 3
+            : 4 5 6
+
+...presumably literals can be defined something like this:
+
+    union literal:
+        int_f: int
+        string_f: string
+        array_f: array: inplace @literal
+
+        # The following is for @NAME and @@NAME syntax
+        name_f: string
+
+...ooh, that's kind of nice. :3
+And the @NAME syntax... can that be used for generic pointers?..
+So that we can e.g. [de]serialize weakrefs?..
