@@ -10,6 +10,7 @@
 
 /* Expected from other translation units */
 typedef struct lexer lexer_t;
+typedef struct writer writer_t;
 
 
 typedef struct tokentree tokentree_t;
@@ -45,7 +46,7 @@ struct tokentree {
 
 void tokentree_cleanup(tokentree_t *tokentree);
 int tokentree_parse(tokentree_t *tokentree, lexer_t *lexer);
-void tokentree_write(tokentree_t *tokentree, FILE *file, int depth);
+int tokentree_write(tokentree_t *tokentree, writer_t *writer);
 
 
 #endif

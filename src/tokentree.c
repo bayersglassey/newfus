@@ -7,6 +7,7 @@
 #include "tokentree.h"
 #include "lexer.h"
 #include "lexer_macros.h"
+#include "writer.h"
 
 
 
@@ -69,65 +70,33 @@ int tokentree_parse(tokentree_t *tokentree, lexer_t *lexer) {
     return 0;
 }
 
-static void _str_putc(FILE *f, char c){
-    if(c == '\n'){
-        fputs("\\n", f);
-    }else if(c == '\"' || c == '\\'){
-        fputc('\\', f);
-        fputc(c, f);
-    }else{
-        fputc(c, f);
-    }
-}
-
-static void _str_write(FILE *f, const char *s){
-    fputc('\"', f);
-    char c;
-    while(c = *s, c != '\0'){
-        _str_putc(f, c);
-        s++;
-    }
-    fputc('\"', f);
-}
-
-void tokentree_write(tokentree_t *tokentree, FILE *file, int depth) {
-    /* If depth < 0, we write arrays inline, with parentheses.
-    If depth >= 0, we write arrays using ':', newlines, and indentation. */
+int tokentree_write(tokentree_t *tokentree, writer_t *writer) {
+    int err;
     switch(tokentree->tag) {
         case TOKENTREE_TAG_INT:
-            fprintf(file, "%i", tokentree->u.int_f);
-            break;
+            return writer_write_int(writer, tokentree->u.int_f);
         case TOKENTREE_TAG_NAME:
+            return writer_write_name(writer, tokentree->u.string_f);
         case TOKENTREE_TAG_OP:
-            fputs(tokentree->u.string_f, file);
-            break;
+            return writer_write_op(writer, tokentree->u.string_f);
         case TOKENTREE_TAG_STR:
-            _str_write(file, tokentree->u.string_f);
-            break;
+            return writer_write_str(writer, tokentree->u.string_f);
         case TOKENTREE_TAG_ARR: {
-            if (depth < 0) fputc('(', file);
-            else fputc(':', file);
+            err = writer_write_open(writer);
+            if (err) return err;
             ARRAY_FOR(tokentree_t, tokentree->u.array_f, elem) {
-                int new_depth = depth;
-                if (new_depth < 0) {
-                    if (elem != &tokentree->u.array_f.elems[0]) fputc(' ', file);
-                } else {
-                    new_depth++;
-                    fputc('\n', file);
-                    for (int i = 0; i < new_depth; i++) fputs("    ", file);
-                }
-                tokentree_write(elem, file, new_depth);
+                err = tokentree_write(elem, writer);
+                if (err) return err;
             }
-            if (depth < 0) fputc(')', file);
-            break;
+            return writer_write_close(writer);
         }
         case TOKENTREE_TAG_UNDEFINED:
-            /* Caller should guarantee this never happens */
-            fprintf(file, "XXX_UNDEFINED_XXX");
-            break;
+            fprintf(stderr, "%s: Encountered UNDEFINED tokentree node\n",
+                __func__);
+            return 2;
         default:
-            /* Caller should guarantee this never happens */
-            fprintf(file, "XXX_UNKNOWN_XXX");
-            break;
+            fprintf(stderr, "%s: Unrecognized tokentree tag: %i\n",
+                __func__, tokentree->tag);
+            return 2;
     }
 }

@@ -10,6 +10,7 @@
 #include "str_utils.h"
 #include "stringstore.h"
 #include "tokentree.h"
+#include "writer.h"
 
 
 struct tokentree_frame {
@@ -64,6 +65,10 @@ void lexer_init(lexer_t *lexer, stringstore_t *store) {
 }
 
 void lexer_dump(lexer_t *lexer, FILE *f) {
+    writer_t _writer, *writer=&_writer;
+    writer_init(writer, stderr);
+    writer->oneline = true;
+
     fprintf(f, "lexer: %p\n", lexer);
     if (lexer == NULL) return;
     /* fprintf(f, "  text = ...\n"); */
@@ -81,14 +86,20 @@ void lexer_dump(lexer_t *lexer, FILE *f) {
     }
 
     fprintf(f, "  loaded_tokentree = ");
-    if (lexer->loaded_tokentree) tokentree_write(lexer->loaded_tokentree, f, -1);
-    else fprintf(f, "(none)");
+    if (lexer->loaded_tokentree) {
+        (void) tokentree_write(lexer->loaded_tokentree, writer);
+    } else {
+        fprintf(f, "(none)");
+    }
     fprintf(f, "\n");
 
     if (lexer->loaded_tokentree) {
         fprintf(f, "  tokentree = ");
-        if (lexer->tokentree) tokentree_write(lexer->tokentree, f, -1);
-        else fprintf(f, "(none)");
+        if (lexer->tokentree) {
+            (void) tokentree_write(lexer->tokentree, writer);
+        } else {
+            fprintf(f, "(none)");
+        }
         fprintf(f, "\n");
         fprintf(f, "  tokentree_frames_size = %i\n", lexer->tokentree_frames_size);
         fprintf(f, "  tokentree_frames_len = %i\n", lexer->tokentree_frames_len);
@@ -96,10 +107,12 @@ void lexer_dump(lexer_t *lexer, FILE *f) {
         for (int i = 0; i < lexer->tokentree_frames_len; i++) {
             tokentree_frame_t *frame = &lexer->tokentree_frames[i];
             fprintf(f, "    [%i] ", frame->i);
-            tokentree_write(frame->tokentree, f, -1);
+            (void) tokentree_write(frame->tokentree, writer);
             fprintf(f, "\n");
         }
     }
+
+    writer_cleanup(writer);
 }
 
 void lexer_info(lexer_t *lexer, FILE *f) {
@@ -653,13 +666,19 @@ bool lexer_got_close(lexer_t *lexer) {
 }
 
 void lexer_show(lexer_t *lexer, FILE *f) {
+    writer_t _writer, *writer=&_writer;
+    writer_init(writer, f);
+    writer->oneline = true;
+
     if (lexer->tokentree) {
-        tokentree_write(lexer->tokentree, f, -1);
+        (void) tokentree_write(lexer->tokentree, writer);
     } else if (lexer->token) {
         fprintf(f, "\"%.*s\"", lexer->token_len, lexer->token);
     } else {
         fprintf(f, "end of input");
     }
+
+    writer_cleanup(writer);
 }
 
 int lexer_get(lexer_t *lexer, const char *text) {

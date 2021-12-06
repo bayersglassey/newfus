@@ -10,9 +10,10 @@
 #include "../stringstore.h"
 #include "../lexer.h"
 #include "../lexer_macros.h"
+#include "../writer.h"
 
 
-bool output_inline = false;
+bool output_oneline = false;
 bool reparse = false;
 
 
@@ -22,7 +23,7 @@ static void print_usage(FILE *file) {
         "To read stdin, use the filename \"-\".\n"
         "Options:\n"
         "  -h  --help            Print this message and exit\n"
-        "  -i  --inline          Output tokentree \"inline\" as opposed to indented\n"
+        "  -i  --oneline         Output tokentree \"oneline\" as opposed to indented\n"
         "  -r  --reparse         Parse the parsed tokentree\n"
         "                        (for testing lexer_load_tokentree)\n"
     );
@@ -36,6 +37,10 @@ static int parse_buffer(const char *buffer, const char *filename,
 
     lexer_t _lexer, *lexer=&_lexer;
     lexer_init(lexer, store);
+
+    writer_t _writer, *writer=&_writer;
+    writer_init(writer, stdout);
+    writer->oneline = output_oneline;
 
     err = lexer_load(lexer, buffer, filename);
     if (err) return err;
@@ -68,14 +73,16 @@ static int parse_buffer(const char *buffer, const char *filename,
             tokentree = tokentree2;
         }
 
-        int depth = output_inline? -1: 0;
-        tokentree_write(&tokentree, stdout, depth);
+        writer_reset(writer);
+        err = tokentree_write(&tokentree, writer);
+        if (err) return err;
         fputc('\n', stdout);
 
         tokentree_cleanup(&tokentree);
     }
 
     lexer_cleanup(lexer);
+    writer_cleanup(writer);
     return 0;
 }
 
@@ -89,8 +96,8 @@ int main(int n_args, char **args) {
         if (!strcmp(arg, "-h") || !strcmp(arg, "--help")) {
             print_usage(stdout);
             return 0;
-        } else if (!strcmp(arg, "-i") || !strcmp(arg, "--inline")) {
-            output_inline = true;
+        } else if (!strcmp(arg, "-i") || !strcmp(arg, "--oneline")) {
+            output_oneline = true;
         } else if (!strcmp(arg, "-r") || !strcmp(arg, "--reparse")) {
             reparse = true;
         } else if (!strcmp(arg, "--")) {
